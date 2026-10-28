@@ -49,6 +49,12 @@ def lines_detect(image):
     return np.array(peaks)
 
 
+class CommissionRequirementNotMet(Exception):
+    # Fleet recommended by game still doesn't meet commission limitations,
+    # such as ship level, usually on low level accounts.
+    pass
+
+
 class RewardCommission(UI, InfoHandler):
     daily: SelectedGrids
     urgent: SelectedGrids
@@ -56,6 +62,8 @@ class RewardCommission(UI, InfoHandler):
     urgent_choose: SelectedGrids
     comm_choose: SelectedGrids
     max_commission = 4
+    # Commissions whose requirements are not met in this run, they won't be chosen again
+    comm_unmet: list
 
     def _commission_detect(self, image):
         """
@@ -199,8 +207,20 @@ class RewardCommission(UI, InfoHandler):
             return False
         if not self.config.Commission_DoMajorCommission and commission.category_str == 'major':
             return False
+        if self._commission_is_unmet(commission):
+            return False
 
         return True
+
+    def _commission_is_unmet(self, commission):
+        """
+        Args:
+            commission (Commission):
+
+        Returns:
+            bool: If commission requirements are known to be not met in this run.
+        """
+        return any(commission == unmet for unmet in getattr(self, 'comm_unmet', []))
 
     def _commission_ensure_mode(self, mode):
         if COMMISSION_SWITCH.set(mode, main=self):
@@ -394,6 +414,10 @@ class RewardCommission(UI, InfoHandler):
                         return False
                 else:
                     logger.warning('No selected commission detected, assuming correct')
+                # Recommend has been clicked but COMMISSION_START is still disabled
+                if count >= 1 and self._commission_requirement_unmet():
+                    logger.warning(f'Commission requirements not met even with recommended fleet: {comm}')
+                    raise CommissionRequirementNotMet
                 self.device.click(COMMISSION_ADVICE)
                 count += 1
                 self.interval_reset(COMMISSION_ADVICE)
@@ -407,6 +431,21 @@ class RewardCommission(UI, InfoHandler):
                 comm_timer.reset()
 
         return True
+
+    def _commission_requirement_unmet(self):
+        """
+        Unmet limitations are shown in red with a red cross,
+        in the limitation row above COMMISSION_ADVICE.
+
+        Returns:
+            bool: If any limitation of the unfolded commission is not met.
+
+        Pages:
+            in: commission details unfold, COMMISSION_ADVICE appeared
+        """
+        top = COMMISSION_ADVICE.button[1]
+        area = (300, max(top - 95, 0), 1180, max(top - 45, 0))
+        return self.image_color_count(area, color=(240, 85, 80), threshold=40, count=50)
 
     def _commission_find_and_start(self, comm, is_urgent=False):
         """
@@ -435,7 +474,14 @@ class RewardCommission(UI, InfoHandler):
                     if new_comm == comm:
                         current = new_comm
                 if current is not None:
-                    if self._commission_start_click(current, is_urgent=is_urgent):
+                    try:
+                        started = self._commission_start_click(current, is_urgent=is_urgent)
+                    except CommissionRequirementNotMet:
+                        logger.warning(f'Skip commission: {comm}')
+                        self.comm_unmet.append(comm)
+                        self.device.click_record_clear()
+                        return False
+                    if started:
                         self.device.click_record_clear()
                         return True
                     else:
@@ -471,11 +517,29 @@ class RewardCommission(UI, InfoHandler):
             in: page_commission
             out: page_commission
         """
-        self._commission_scan_all()
+        self.comm_unmet = []
+        # Choose again if some commissions have unmet requirements, so other commissions can fill the slots
+        for _ in range(3):
+            unmet = len(self.comm_unmet)
+            self._commission_scan_all()
+            self._commission_start_chosen()
+            if len(self.comm_unmet) == unmet:
+                break
+            logger.info('Some commissions have unmet requirements, choose commissions again')
 
+    def _commission_start_chosen(self):
+        """
+        Start commissions chosen in _commission_scan_all()
+
+        Pages:
+            in: page_commission
+            out: page_commission
+        """
         logger.hr('Commission run', level=1)
         if self.daily_choose:
             for comm in self.daily_choose:
+                if self._commission_is_unmet(comm):
+                    continue
                 self._commission_ensure_mode('daily')
                 self._commission_swipe_to_top()
                 self.handle_info_bar()
@@ -484,6 +548,8 @@ class RewardCommission(UI, InfoHandler):
                 self._commission_mode_reset()
         if self.urgent_choose:
             for comm in self.urgent_choose:
+                if self._commission_is_unmet(comm):
+                    continue
                 self._commission_ensure_mode('urgent')
                 self._commission_swipe_to_top()
                 self.handle_info_bar()

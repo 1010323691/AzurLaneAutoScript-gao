@@ -288,19 +288,38 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
         self.bind(self.task)
         self.save()
 
+    def next_run_limit(self, task):
+        """
+        NextRun of a task can't be later than now + limit, otherwise it's reset to now in override().
+
+        Args:
+            task (str):
+
+        Returns:
+            timedelta: Limit, or None if no limit.
+        """
+        if task in ["Commission", "Reward"]:
+            return timedelta(hours=12, seconds=-1)
+        if task in ["Research"]:
+            return timedelta(hours=24, seconds=-1)
+        if task in ["OpsiExplore", "OpsiCrossMonth", "OpsiVoucher", "OpsiMonthBoss", "OpsiShop"]:
+            return timedelta(days=31, seconds=-1)
+        if task in ["OpsiArchive"]:
+            return timedelta(days=7, seconds=-1)
+        if task in self.args:
+            return timedelta(hours=24, seconds=-1)
+        return None
+
     def override(self, **kwargs):
         now = datetime.now().replace(microsecond=0)
-        limited = set()
 
-        def limit_next_run(tasks, limit):
+        def limit_next_run(tasks):
             for task in tasks:
-                if task in limited:
-                    continue
-                limited.add(task)
                 next_run = deep_get(
                     self.data, keys=f"{task}.Scheduler.NextRun", default=None
                 )
-                if isinstance(next_run, datetime) and next_run > limit:
+                limit = self.next_run_limit(task)
+                if isinstance(next_run, datetime) and limit is not None and next_run > now + limit:
                     deep_set(self.data, keys=f"{task}.Scheduler.NextRun", value=now)
 
         for task in ["Commission", "Research", "Reward"]:
@@ -315,12 +334,7 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
                 "Reward",
             ]
         )
-        limit_next_run(["Commission", "Reward"], limit=now + timedelta(hours=12, seconds=-1))
-        limit_next_run(["Research"], limit=now + timedelta(hours=24, seconds=-1))
-        limit_next_run(["OpsiExplore", "OpsiCrossMonth", "OpsiVoucher", "OpsiMonthBoss", "OpsiShop"],
-                       limit=now + timedelta(days=31, seconds=-1))
-        limit_next_run(["OpsiArchive"], limit=now + timedelta(days=7, seconds=-1))
-        limit_next_run(self.args.keys(), limit=now + timedelta(hours=24, seconds=-1))
+        limit_next_run(self.args.keys())
 
         """
         Override anything you want.
@@ -440,6 +454,13 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
             )
             if task is None:
                 task = self.task.command
+            # Delaying over the limit would be reset to now in override(), and run immediately
+            limit = self.next_run_limit(task)
+            if limit is not None:
+                latest = datetime.now().replace(microsecond=0) + limit
+                if run > latest:
+                    logger.info(f"Delay of task `{task}` is limited to {latest}")
+                    run = latest
             logger.info(f"Delay task `{task}` to {run} ({kv})")
             self.modified[f'{task}.Scheduler.NextRun'] = run
             self.update()
