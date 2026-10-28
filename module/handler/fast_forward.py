@@ -331,7 +331,11 @@ class FastForwardHandler(AutoSearchHandler):
 
         logger.info('Auto search setting')
         self.fleet_preparation_sidebar_ensure(3)
-        self.auto_search_setting_ensure(self.config.Fleet_FleetOrder)
+        fleet_order = self.config.Fleet_FleetOrder
+        if fleet_order == 'fleet1_mob_fleet2_boss_auto_swap':
+            # Should have been resolved in Emotion.check_reduce(), fallback to the default order
+            fleet_order = 'fleet1_mob_fleet2_boss'
+        self.auto_search_setting_ensure(fleet_order)
         if self.config.SUBMARINE:
             self.auto_search_setting_ensure(self.config.Submarine_AutoSearchMode)
         return True

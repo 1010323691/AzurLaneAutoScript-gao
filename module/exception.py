@@ -67,5 +67,13 @@ class RequestHumanTakeover(Exception):
     pass
 
 
-class HardNotSatisfied(RequestHumanTakeover):
+class TaskRequirementNotMet(RequestHumanTakeover):
+    # In-game requirements of current task are not met,
+    # such as commander level, stage progress, stage stats, fleet preparation.
+    # Current task can be skipped if Restart.StuckHandle.Mode is skip_task,
+    # otherwise it's handled as RequestHumanTakeover.
+    pass
+
+
+class HardNotSatisfied(TaskRequirementNotMet):
     pass

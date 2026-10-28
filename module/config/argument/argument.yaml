@@ -89,6 +89,13 @@ Error:
     mode: yaml
     value: 'provider: null'
   ScreenshotLength: 1
+StuckHandle:
+  Mode:
+    value: restart
+    option: [ restart, skip_task ]
+  SkipDelay:
+    value: server_update
+    option: [ 1h, 3h, 6h, server_update ]
 Optimization:
   ScreenshotInterval: 0.3
   CombatScreenshotInterval: 1.0
@@ -194,7 +201,7 @@ Fleet:
     option: [ 2, 3, 4, 5 ]
   FleetOrder:
     value: fleet1_mob_fleet2_boss
-    option: [ fleet1_mob_fleet2_boss, fleet1_boss_fleet2_mob, fleet1_all_fleet2_standby, fleet1_standby_fleet2_all ]
+    option: [ fleet1_mob_fleet2_boss, fleet1_boss_fleet2_mob, fleet1_all_fleet2_standby, fleet1_standby_fleet2_all, fleet1_mob_fleet2_boss_auto_swap ]
 Submarine:
   Fleet:
     value: 0

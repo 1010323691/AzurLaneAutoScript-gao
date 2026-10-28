@@ -26,6 +26,8 @@ class AzurLaneAutoScript:
         # Failure count of tasks
         # Key: str, task name, value: int, failure count
         self.failure_record = {}
+        # Count of tasks skipped in a row because of stuck
+        self.stuck_skip_count = 0
 
     @cached_property
     def config(self):
@@ -67,8 +69,10 @@ class AzurLaneAutoScript:
             if not skip_first_screenshot:
                 self.device.screenshot()
             self.__getattribute__(command)()
+            self.stuck_skip_count = 0
             return True
         except TaskEnd:
+            self.stuck_skip_count = 0
             return True
         except GameNotRunningError as e:
             logger.warning(e)
@@ -77,6 +81,8 @@ class AzurLaneAutoScript:
         except (GameStuckError, GameTooManyClickError) as e:
             logger.error(e)
             self.save_error_log()
+            if self.stuck_skip_task(command):
+                return True
             logger.warning(f'Game stuck, {self.device.package} will be restarted in 10 seconds')
             logger.warning('If you are playing by hand, please stop Alas')
             self.config.task_call('Restart')
@@ -114,7 +120,11 @@ class AzurLaneAutoScript:
                 content=f"<{self.config_name}> ScriptError",
             )
             exit(1)
-        except RequestHumanTakeover:
+        except RequestHumanTakeover as e:
+            if isinstance(e, TaskRequirementNotMet):
+                self.save_error_log()
+                if self.stuck_skip_task(command):
+                    return True
             logger.critical('Request human takeover')
             handle_notify(
                 self.config.Error_OnePushConfig,
@@ -131,6 +141,41 @@ class AzurLaneAutoScript:
                 content=f"<{self.config_name}> Exception occured",
             )
             exit(1)
+
+    def stuck_skip_task(self, command):
+        """
+        Delay current task instead of restarting game or requesting human takeover,
+        if Restart.StuckHandle.Mode is skip_task.
+        Game client will still be restarted if tasks get stuck in a row.
+
+        Args:
+            command (str): Command that raised the error, such as `main`.
+
+        Returns:
+            bool: If current task skipped.
+        """
+        if deep_get(self.config.data, keys='Restart.StuckHandle.Mode', default='restart') != 'skip_task':
+            return False
+        task = self.config.task.command
+        # Errors from goto_main or Restart itself are not skippable
+        if task == 'Restart' or inflection.underscore(task) != command:
+            return False
+
+        delay = deep_get(self.config.data, keys='Restart.StuckHandle.SkipDelay', default='server_update')
+        logger.warning(f'Task `{task}` cannot continue, skip it (Restart.StuckHandle.Mode=skip_task)')
+        minute = {'1h': 60, '3h': 180, '6h': 360}.get(delay)
+        if minute is None:
+            self.config.task_delay(server_update=True)
+        else:
+            self.config.task_delay(minute=minute)
+
+        self.stuck_skip_count += 1
+        if self.stuck_skip_count >= 2:
+            logger.warning(f'{self.stuck_skip_count} tasks stuck in a row, '
+                           f'{self.device.package} will be restarted')
+            self.config.task_call('Restart')
+            self.stuck_skip_count = 0
+        return True
 
     def save_error_log(self):
         """

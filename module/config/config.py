@@ -708,6 +708,7 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
             if self.Fleet_FleetOrder in [
                 "fleet1_mob_fleet2_boss",
                 "fleet1_boss_fleet2_mob",
+                "fleet1_mob_fleet2_boss_auto_swap",
             ]:
                 return 2
             else:

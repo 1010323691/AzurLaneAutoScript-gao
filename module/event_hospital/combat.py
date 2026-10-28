@@ -4,7 +4,7 @@ from module.campaign.campaign_event import CampaignEvent
 from module.combat.combat import BATTLE_PREPARATION, Combat
 from module.event_hospital.assets import HOSPITAL_BATTLE_PREPARE
 from module.event_hospital.ui import HospitalUI
-from module.exception import OilExhausted, RequestHumanTakeover
+from module.exception import OilExhausted, TaskRequirementNotMet
 from module.logger import logger
 from module.map.assets import *
 from module.map.map_fleet_preparation import FleetOperator
@@ -33,7 +33,7 @@ class HospitalCombat(Combat, HospitalUI, CampaignEvent):
         else:
             logger.error('Fleet not prepared and fleet recommend is not enabled, '
                          'please prepare fleets manually before running')
-            raise RequestHumanTakeover
+            raise TaskRequirementNotMet
 
     def combat_preparation(self, balance_hp=False, emotion_reduce=False, auto='combat_auto', fleet_index=1):
         """

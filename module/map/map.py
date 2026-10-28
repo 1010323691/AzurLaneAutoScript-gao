@@ -27,7 +27,9 @@ class Map(Fleet):
         battle_count = self.battle_count
         self.show_fleet()
         if self.emotion.is_calculate and self.config.Campaign_UseFleetLock:
-            self.emotion.wait(fleet_index=self.fleet_current_index)
+            # Emotion is recorded by fleet_show_index, which differs from fleet_current_index
+            # when fleets are reversed.
+            self.emotion.wait(fleet_index=self.fleet_show_index)
         self.goto(grid, expected=expected)
 
         self.full_scan()
@@ -729,7 +731,7 @@ class Map(Fleet):
         prev = self.battle_count
         for n, grid in enumerate(itertools.cycle(route)):
             if self.emotion.is_calculate and self.config.Campaign_UseFleetLock:
-                self.emotion.wait(fleet_index=self.fleet_current_index)
+                self.emotion.wait(fleet_index=self.fleet_show_index)
             self.goto(grid, expected='combat_nothing')
 
             if self.battle_count > prev:

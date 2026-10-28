@@ -37,6 +37,10 @@ class GeneratedConfig:
     Error_OnePushConfig = 'provider: null'
     Error_ScreenshotLength = 1
 
+    # Group `StuckHandle`
+    StuckHandle_Mode = 'restart'  # restart, skip_task
+    StuckHandle_SkipDelay = 'server_update'  # 1h, 3h, 6h, server_update
+
     # Group `Optimization`
     Optimization_ScreenshotInterval = 0.3
     Optimization_CombatScreenshotInterval = 1.0
@@ -99,7 +103,7 @@ class GeneratedConfig:
     Fleet_Fleet2Formation = 'double_line'  # line_ahead, double_line, diamond
     Fleet_Fleet2Mode = 'combat_auto'  # combat_auto, combat_manual, stand_still_in_the_middle, hide_in_bottom_left, hide_in_upper_left
     Fleet_Fleet2Step = 2  # 2, 3, 4, 5
-    Fleet_FleetOrder = 'fleet1_mob_fleet2_boss'  # fleet1_mob_fleet2_boss, fleet1_boss_fleet2_mob, fleet1_all_fleet2_standby, fleet1_standby_fleet2_all
+    Fleet_FleetOrder = 'fleet1_mob_fleet2_boss'  # fleet1_mob_fleet2_boss, fleet1_boss_fleet2_mob, fleet1_all_fleet2_standby, fleet1_standby_fleet2_all, fleet1_mob_fleet2_boss_auto_swap
 
     # Group `Submarine`
     Submarine_Fleet = 0  # 0, 1, 2

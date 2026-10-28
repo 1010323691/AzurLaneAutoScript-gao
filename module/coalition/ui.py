@@ -2,7 +2,7 @@ from module.base.timer import Timer
 from module.coalition.assets import *
 from module.combat.assets import BATTLE_PREPARATION
 from module.combat.combat import Combat
-from module.exception import CampaignNameError, RequestHumanTakeover, ScriptError
+from module.exception import CampaignNameError, RequestHumanTakeover, TaskRequirementNotMet, ScriptError
 from module.logger import logger
 from module.ui.assets import BACK_ARROW
 from module.ui.page import page_coalition
@@ -344,13 +344,13 @@ class CoalitionUI(Combat):
         if self.appear(FLEET_NOT_PREPARED, offset=(20, 20)):
             logger.critical('FLEET_NOT_PREPARED')
             logger.critical('Please prepare you fleets before running coalition battles')
-            raise RequestHumanTakeover
+            raise TaskRequirementNotMet
         if self.appear(EMPTY_FLAGSHIP, offset=(20, 20)):
             logger.critical('EMPTY_FLAGSHIP, Please prepare you fleets before running coalition battles')
-            raise RequestHumanTakeover
+            raise TaskRequirementNotMet
         if self.appear(EMPTY_VANGUARD, offset=(20, 20)):
             logger.critical('EMPTY_VANGUARD, Please prepare you fleets before running coalition battles')
-            raise RequestHumanTakeover
+            raise TaskRequirementNotMet
 
         return clicked
 
@@ -410,7 +410,7 @@ class CoalitionUI(Combat):
             if campaign_click > 5:
                 logger.critical(f"Failed to enter {button}, too many click on {button}")
                 logger.critical("Possible reason #1: You haven't cleared previous stage to unlock the stage.")
-                raise RequestHumanTakeover
+                raise TaskRequirementNotMet
             if campaign_difficulty_click > 5:
                 logger.critical(f"Failed to enter {button_difficulty}, too many click on {button_difficulty}")
                 logger.critical("Possible reason #1: The difficulty asset is not correct.")
@@ -422,7 +422,7 @@ class CoalitionUI(Combat):
                 logger.critical("Possible reason #2: "
                                 "This stage can only be farmed once a day, "
                                 "but it's the second time that you are entering")
-                raise RequestHumanTakeover
+                raise TaskRequirementNotMet
 
             # End
             if self.appear(BATTLE_PREPARATION, offset=(20, 20)):

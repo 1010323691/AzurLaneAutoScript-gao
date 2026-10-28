@@ -545,6 +545,26 @@
       "help": "Error.ScreenshotLength.help"
     }
   },
+  "StuckHandle": {
+    "_info": {
+      "name": "スタック時の処理",
+      "help": ""
+    },
+    "Mode": {
+      "name": "タスクが詰まった時",
+      "help": "クリックが反応しない、同じ画面で長時間止まる、またはレベル・進行度・海域ステータス・編成などのゲーム内条件を満たしていない時の処理\nゲームを再起動：ゲームを再起動してこのタスクを再試行、条件未達成の場合は Alas を停止（従来の動作）\nタスクをスキップ：このタスクを延期して他のタスクを続行、低レベルアカウント向け\n2 つのタスクが連続で詰まった場合はゲームを再起動します",
+      "restart": "ゲームを再起動",
+      "skip_task": "タスクをスキップ"
+    },
+    "SkipDelay": {
+      "name": "スキップ後の延期",
+      "help": "「タスクをスキップ」選択時のみ有効",
+      "1h": "1 時間",
+      "3h": "3 時間",
+      "6h": "6 時間",
+      "server_update": "次のサーバー更新まで"
+    }
+  },
   "Optimization": {
     "_info": {
       "name": "Optimization._info.name",
@@ -1015,11 +1035,12 @@
     },
     "FleetOrder": {
       "name": "Fleet.FleetOrder.name",
-      "help": "Fleet.FleetOrder.help",
+      "help": "Fleet.FleetOrder.help\n「気分不足時に自動交代」を選ぶと、出撃前に計算した気分で役割を決めます：道中艦隊の気分がこの海域に足りない場合、もう一方の艦隊が道中、元の道中艦隊がボスを担当します。どちらの配置でも足りない場合のみ気分回復を待ちます",
       "fleet1_mob_fleet2_boss": "fleet1_mob_fleet2_boss",
       "fleet1_boss_fleet2_mob": "fleet1_boss_fleet2_mob",
       "fleet1_all_fleet2_standby": "fleet1_all_fleet2_standby",
-      "fleet1_standby_fleet2_all": "fleet1_standby_fleet2_all"
+      "fleet1_standby_fleet2_all": "fleet1_standby_fleet2_all",
+      "fleet1_mob_fleet2_boss_auto_swap": "第一艦隊道中 第二艦隊ボス、気分不足時に自動交代"
     }
   },
   "Submarine": {

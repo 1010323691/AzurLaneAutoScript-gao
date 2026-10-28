@@ -417,6 +417,26 @@
         "display": "hide"
       }
     },
+    "StuckHandle": {
+      "Mode": {
+        "type": "select",
+        "value": "restart",
+        "option": [
+          "restart",
+          "skip_task"
+        ]
+      },
+      "SkipDelay": {
+        "type": "select",
+        "value": "server_update",
+        "option": [
+          "1h",
+          "3h",
+          "6h",
+          "server_update"
+        ]
+      }
+    },
     "Storage": {
       "Storage": {
         "type": "storage",
@@ -630,7 +650,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -1009,7 +1030,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -1388,7 +1410,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -2284,7 +2307,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -2699,7 +2723,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -4069,7 +4094,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -4501,7 +4527,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -4933,7 +4960,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -5365,7 +5393,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -5797,7 +5826,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },
@@ -6219,7 +6249,8 @@
           "fleet1_mob_fleet2_boss",
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
-          "fleet1_standby_fleet2_all"
+          "fleet1_standby_fleet2_all",
+          "fleet1_mob_fleet2_boss_auto_swap"
         ]
       }
     },

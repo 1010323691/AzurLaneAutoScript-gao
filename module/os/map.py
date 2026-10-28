@@ -4,7 +4,7 @@ import inflection
 
 from module.base.timer import Timer
 from module.config.utils import get_os_reset_remain
-from module.exception import CampaignEnd, GameTooManyClickError, MapWalkError, RequestHumanTakeover, ScriptError
+from module.exception import CampaignEnd, GameTooManyClickError, MapWalkError, ScriptError, TaskRequirementNotMet
 from module.handler.login import LoginHandler, MAINTENANCE_ANNOUNCE
 from module.logger import logger
 from module.map.map import Map
@@ -468,7 +468,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StrategicSearchHandler):
 
         Raises:
             CampaignEnd: If auto search ended
-            RequestHumanTakeover: If there's no auto search option.
+            TaskRequirementNotMet: If there's no auto search option.
 
         Pages:
             in: AUTO_SEARCH_OS_MAP_OPTION_OFF
@@ -491,7 +491,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StrategicSearchHandler):
                 logger.critical('Unable to use auto search in current zone')
                 logger.critical('Please finish the story mode of OpSi to unlock auto search '
                                 'before using any OpSi functions')
-                raise RequestHumanTakeover
+                raise TaskRequirementNotMet
             if self.is_in_map():
                 self.device.stuck_record_clear()
                 if not success:

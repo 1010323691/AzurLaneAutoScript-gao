@@ -3,7 +3,7 @@ import os
 from module.config.config import TaskEnd
 from module.config.utils import get_server_last_update
 from module.event.base import STAGE_FILTER, EventBase, EventStage
-from module.exception import ScriptEnd, RequestHumanTakeover
+from module.exception import ScriptEnd, TaskRequirementNotMet
 from module.logger import logger
 
 
@@ -54,7 +54,7 @@ class CampaignABCD(EventBase):
                         f'Cannot find stage "{stage}". '
                         f'Task "{task}" is for 3X daily PT, if you have not unlock {stage}, '
                         f'you should use task "Event" to unlock it instead of using task "{task}"')
-                    raise RequestHumanTakeover
+                    raise TaskRequirementNotMet
                 else:
                     raise
 

@@ -73,6 +73,10 @@
       "FailureInterval": 0,
       "ServerUpdate": "00:00"
     },
+    "StuckHandle": {
+      "Mode": "restart",
+      "SkipDelay": "server_update"
+    },
     "Storage": {
       "Storage": {}
     }
