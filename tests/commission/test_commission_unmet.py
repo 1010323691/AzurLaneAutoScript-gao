@@ -58,58 +58,74 @@ class TestRequirementUnmet(unittest.TestCase):
 class FakeCommission:
     def __init__(self, name):
         self.name = name
+        self.status = 'pending'
 
-    def __eq__(self, other):
-        return isinstance(other, FakeCommission) and self.name == other.name
+    def convert_to_running(self):
+        self.status = 'running'
 
     def __repr__(self):
         return self.name
 
 
-class TestChooseAgain(unittest.TestCase):
-    def make(self, unmet_rounds):
+class TestStopOnUnmet(unittest.TestCase):
+    def make(self, daily, urgent, unmet=()):
         """
         Args:
-            unmet_rounds (list[list[str]]): Commissions found unmet in each round.
+            daily (list[str]): Chosen daily commissions.
+            urgent (list[str]): Chosen urgent commissions.
+            unmet (tuple[str]): Commissions that no idle ships meet requirements.
         """
         c = RewardCommission.__new__(RewardCommission)
-        c.rounds = 0
-        rounds = list(unmet_rounds)
+        c.tried = []
+        comms = {name: FakeCommission(name) for name in daily + urgent}
 
-        def start_chosen():
-            c.rounds += 1
-            if rounds:
-                for name in rounds.pop(0):
-                    c.comm_unmet.append(FakeCommission(name))
+        def scan_all():
+            c.daily_choose = [comms[name] for name in daily]
+            c.urgent_choose = [comms[name] for name in urgent]
 
-        c._commission_scan_all = lambda: None
-        c._commission_start_chosen = start_chosen
+        def find_and_start(comm, is_urgent=False):
+            c.tried.append(comm.name)
+            if comm.name in unmet:
+                c.comm_requirement_unmet = True
+                return False
+            return True
+
+        c._commission_scan_all = scan_all
+        c._commission_find_and_start = find_and_start
+        c._commission_ensure_mode = lambda mode: None
+        c._commission_swipe_to_top = lambda: None
+        c._commission_mode_reset = lambda: None
+        c.handle_info_bar = lambda: None
+        c.comms = comms
         return c
 
-    def test_no_unmet_runs_once(self):
-        c = self.make([[]])
+    def test_all_started(self):
+        c = self.make(['A', 'B'], ['C'])
         c.commission_start()
-        self.assertEqual(c.rounds, 1)
+        self.assertEqual(c.tried, ['A', 'B', 'C'])
+        self.assertEqual([x.status for x in c.comms.values()], ['running'] * 3)
 
-    def test_unmet_chooses_again(self):
-        c = self.make([['A'], []])
+    def test_stop_after_first_unmet(self):
+        # No idle ships left, other commissions won't do either
+        c = self.make(['A', 'B'], ['C'], unmet=('A',))
         c.commission_start()
-        self.assertEqual(c.rounds, 2)
-        self.assertTrue(c._commission_is_unmet(FakeCommission('A')))
-        self.assertFalse(c._commission_is_unmet(FakeCommission('B')))
+        self.assertEqual(c.tried, ['A'])
 
-    def test_choose_again_at_most_3_rounds(self):
-        c = self.make([['A'], ['B'], ['C'], ['D']])
+    def test_started_before_unmet_kept(self):
+        c = self.make(['A', 'B'], ['C'], unmet=('B',))
         c.commission_start()
-        self.assertEqual(c.rounds, 3)
+        self.assertEqual(c.tried, ['A', 'B'])
+        self.assertEqual(c.comms['A'].status, 'running')
+        self.assertEqual(c.comms['C'].status, 'pending')
 
-    def test_unmet_reset_each_run(self):
-        c = self.make([['A'], []])
+    def test_flag_reset_each_run(self):
+        c = self.make(['A'], [], unmet=('A',))
         c.commission_start()
-        c.rounds = 0
-        c._commission_start_chosen = lambda: None
-        c.commission_start()
-        self.assertFalse(c._commission_is_unmet(FakeCommission('A')))
+        self.assertTrue(c.comm_requirement_unmet)
+        c2 = self.make(['A'], [])
+        c2.comm_requirement_unmet = True
+        c2.commission_start()
+        self.assertEqual(c2.tried, ['A'])
 
 
 class TestTaskDelayLimit(unittest.TestCase):

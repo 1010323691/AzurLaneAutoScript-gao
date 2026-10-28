@@ -51,7 +51,7 @@ def lines_detect(image):
 
 class CommissionRequirementNotMet(Exception):
     # Fleet recommended by game still doesn't meet commission limitations,
-    # such as ship level, usually on low level accounts.
+    # which means no idle ships qualified, usually on low level accounts.
     pass
 
 
@@ -62,8 +62,9 @@ class RewardCommission(UI, InfoHandler):
     urgent_choose: SelectedGrids
     comm_choose: SelectedGrids
     max_commission = 4
-    # Commissions whose requirements are not met in this run, they won't be chosen again
-    comm_unmet: list
+    # If a commission can't be started because no idle ships meet its requirements.
+    # Other commissions won't do either, so stop starting commissions.
+    comm_requirement_unmet = False
 
     def _commission_detect(self, image):
         """
@@ -207,20 +208,8 @@ class RewardCommission(UI, InfoHandler):
             return False
         if not self.config.Commission_DoMajorCommission and commission.category_str == 'major':
             return False
-        if self._commission_is_unmet(commission):
-            return False
 
         return True
-
-    def _commission_is_unmet(self, commission):
-        """
-        Args:
-            commission (Commission):
-
-        Returns:
-            bool: If commission requirements are known to be not met in this run.
-        """
-        return any(commission == unmet for unmet in getattr(self, 'comm_unmet', []))
 
     def _commission_ensure_mode(self, mode):
         if COMMISSION_SWITCH.set(mode, main=self):
@@ -478,7 +467,7 @@ class RewardCommission(UI, InfoHandler):
                         started = self._commission_start_click(current, is_urgent=is_urgent)
                     except CommissionRequirementNotMet:
                         logger.warning(f'Skip commission: {comm}')
-                        self.comm_unmet.append(comm)
+                        self.comm_requirement_unmet = True
                         self.device.click_record_clear()
                         return False
                     if started:
@@ -517,29 +506,14 @@ class RewardCommission(UI, InfoHandler):
             in: page_commission
             out: page_commission
         """
-        self.comm_unmet = []
-        # Choose again if some commissions have unmet requirements, so other commissions can fill the slots
-        for _ in range(3):
-            unmet = len(self.comm_unmet)
-            self._commission_scan_all()
-            self._commission_start_chosen()
-            if len(self.comm_unmet) == unmet:
-                break
-            logger.info('Some commissions have unmet requirements, choose commissions again')
+        self.comm_requirement_unmet = False
+        self._commission_scan_all()
 
-    def _commission_start_chosen(self):
-        """
-        Start commissions chosen in _commission_scan_all()
-
-        Pages:
-            in: page_commission
-            out: page_commission
-        """
         logger.hr('Commission run', level=1)
         if self.daily_choose:
             for comm in self.daily_choose:
-                if self._commission_is_unmet(comm):
-                    continue
+                if self.commission_stop_by_requirement():
+                    return
                 self._commission_ensure_mode('daily')
                 self._commission_swipe_to_top()
                 self.handle_info_bar()
@@ -548,8 +522,8 @@ class RewardCommission(UI, InfoHandler):
                 self._commission_mode_reset()
         if self.urgent_choose:
             for comm in self.urgent_choose:
-                if self._commission_is_unmet(comm):
-                    continue
+                if self.commission_stop_by_requirement():
+                    return
                 self._commission_ensure_mode('urgent')
                 self._commission_swipe_to_top()
                 self.handle_info_bar()
@@ -558,6 +532,18 @@ class RewardCommission(UI, InfoHandler):
                 self._commission_mode_reset()
         if not self.daily_choose and not self.urgent_choose:
             logger.info('No commission chose')
+
+    def commission_stop_by_requirement(self):
+        """
+        Returns:
+            bool: True to stop starting commissions,
+                because no idle ships meet requirements, other commissions won't do either.
+                Task will be delayed to the finish time of running commissions, when ships return.
+        """
+        if self.comm_requirement_unmet:
+            logger.info('No idle ships meet commission requirements, stop starting commissions')
+            return True
+        return False
 
     def _commission_receive(self, skip_first_screenshot=True):
         """

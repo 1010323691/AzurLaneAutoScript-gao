@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 互换逻辑在 `module/combat/emotion.py` 的 `Emotion.check_reduce()`。
   3. **自律设置侧边栏兼容 2 个标签**：没解锁指挥喵的账号，侧边栏只有「编队 / 自律设置」两个标签，见 `module/handler/auto_search.py` 的 `fleet_preparation_sidebar_ensure()`。
   4. 地图内等待心情改用 `fleet_show_index`（`module/map/map.py`）：心情是按出击槽位记录的，反转职能时 `fleet_current_index` 是角色编号，会查错舰队。
-  5. **委托条件不满足时跳过**（`module/commission/commission.py`）：点过「推荐」后，限制条件行如果仍有红色 ✗（`_commission_requirement_unmet`），抛出 `CommissionRequirementNotMet`，把这个委托记入 `comm_unmet`，然后重新扫描，用其他委托补满空位（最多 3 轮）。红色检测目前只在日服截图上验证过。
+  5. **委托条件不满足时跳过**（`module/commission/commission.py`）：点过「推荐」后，限制条件行如果仍有红色 ✗（`_commission_requirement_unmet`），抛出 `CommissionRequirementNotMet`，设置 `comm_requirement_unmet`，然后**停止派遣其余委托**：这时意味着已经没有合格的空闲舰船，换别的委托也一样派不出去。任务结束后，`run()` 把下次运行推迟到最早一个进行中委托完成的时间，也就是舰船回来时；如果没有进行中的委托，就用 `FailureInterval`。红色检测目前只在日服截图上验证过。
   6. **`task_delay` 按上限截断**：`AzurLaneConfig.next_run_limit()` 集中定义每个任务 NextRun 的上限（委托、收获 12 小时，科研 24 小时，部分大世界任务 7 天或 31 天，其余任务 24 小时）。`override()` 和 `task_delay()` 共用这份定义。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
