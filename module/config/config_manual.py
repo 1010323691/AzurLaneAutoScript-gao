@@ -139,6 +139,8 @@ class ManualConfig:
     STAGE_INCREASE_AB = True
     # Insert anything to STAGE_INCREASE
     STAGE_INCREASE_CUSTOM = ''
+    # If Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap, set in AzurLaneConfig.bind()
+    FLEET_ORDER_AUTO_SWAP = False
     MAP_HAS_CLEAR_PERCENTAGE = True
     MAP_CLEAR_PERCENTAGE_SHORT = False
     MAP_HAS_WALK_SPEEDUP = False

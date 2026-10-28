@@ -330,15 +330,32 @@ class FastForwardHandler(AutoSearchHandler):
             return False
 
         logger.info('Auto search setting')
-        self.fleet_preparation_sidebar_ensure(3)
-        fleet_order = self.config.Fleet_FleetOrder
-        if fleet_order == 'fleet1_mob_fleet2_boss_auto_swap':
-            # Should have been resolved in Emotion.check_reduce(), fallback to the default order
-            fleet_order = 'fleet1_mob_fleet2_boss'
-        self.auto_search_setting_ensure(fleet_order)
+        if not self.fleet_preparation_sidebar_ensure(3):
+            self.handle_auto_search_setting_failed()
+            return False
+        if not self.auto_search_setting_ensure(self.config.Fleet_FleetOrder):
+            self.handle_auto_search_setting_failed()
         if self.config.SUBMARINE:
             self.auto_search_setting_ensure(self.config.Submarine_AutoSearchMode)
         return True
+
+    def handle_auto_search_setting_failed(self):
+        """
+        Fleet roles in game are unknown if auto search setting failed.
+        When fleet order is swapped by emotion, follow what game is using,
+        so emotion control won't count on the wrong fleet.
+
+        Pages:
+            in: FLEET_PREPARATION
+        """
+        logger.warning(f'Unable to set auto search fleet order to {self.config.Fleet_FleetOrder}')
+        if not self.config.FLEET_ORDER_AUTO_SWAP:
+            return
+        current = self.auto_search_fleet_order_get()
+        if current in ['fleet1_mob_fleet2_boss', 'fleet1_boss_fleet2_mob'] \
+                and current != self.config.Fleet_FleetOrder:
+            logger.warning(f'Game is using fleet order {current}, follow it')
+            self.config.override(Fleet_FleetOrder=current)
 
     @property
     def is_call_submarine_at_boss(self):

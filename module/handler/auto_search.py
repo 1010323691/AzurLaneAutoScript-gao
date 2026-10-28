@@ -75,7 +75,10 @@ class AutoSearchHandler(EnemySearchingHandler):
         if not current:
             logger.warning('No fleet sidebar active.')
         logger.attr('Fleet_sidebar', f'{current}/{total}')
+        self._fleet_sidebar_total = total
         return current
+
+    _fleet_sidebar_total = 0
 
     def fleet_preparation_sidebar_ensure(self, index):
         """
@@ -98,15 +101,50 @@ class AutoSearchHandler(EnemySearchingHandler):
         sidebar = self._fleet_sidebar()
         for _ in self.loop(timeout=3):
             current = self._fleet_preparation_get()
-            if current == index:
+            target = index
+            total = self._fleet_sidebar_total
+            if index == 3 and total == 2:
+                # No meowfficer tab before meowfficers are unlocked,
+                # auto search setting becomes the 2nd tab
+                target = 2
+            if current == target:
                 return True
+            # Don't click a tab that doesn't exist, clicking there closes fleet preparation
+            if target > total:
+                continue
             if interval.reached():
-                self.device.click(sidebar[0, index - 1])
+                self.device.click(sidebar[0, target - 1])
                 interval.reset()
                 continue
         else:
             logger.warning('Sidebar could not be ensured')
             return False
+
+    def _auto_search_setting_active(self):
+        """
+        Returns:
+            list[int]: Index of active options in AUTO_SEARCH_SETTINGS.
+        """
+        active = []
+        for index, button in enumerate(AUTO_SEARCH_SETTINGS):
+            if self.image_color_count(button.button, color=(156, 255, 82), threshold=30, count=20):
+                active.append(index)
+        return active
+
+    def auto_search_fleet_order_get(self):
+        """
+        Returns:
+            str: Fleet order currently selected in game, such as `fleet1_mob_fleet2_boss`,
+                or None if not detected.
+
+        Pages:
+            in: FLEET_PREPARATION, auto search setting sidebar
+        """
+        for index in self._auto_search_setting_active():
+            name = dic_setting_index_to_name[index]
+            if name.startswith('fleet1_'):
+                return name
+        return None
 
     def _auto_search_set_click(self, setting):
         """
@@ -116,11 +154,7 @@ class AutoSearchHandler(EnemySearchingHandler):
         Returns:
             bool: If selected to the correct option.
         """
-        active = []
-
-        for index, button in enumerate(AUTO_SEARCH_SETTINGS):
-            if self.image_color_count(button.button, color=(156, 255, 82), threshold=30, count=20):
-                active.append(index)
+        active = self._auto_search_setting_active()
 
         if not active:
             logger.warning('No active auto search setting found')

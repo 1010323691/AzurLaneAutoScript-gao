@@ -352,6 +352,9 @@ class CampaignRun(CampaignEvent):
         # Close it if map achievement is set
         if self.config.StopCondition_MapAchievement != 'non_stop':
             return False
+        # Auto search continue skips fleet preparation, fleet order swapped by emotion won't be applied
+        if self.campaign.emotion.is_calculate and self.campaign.emotion.is_auto_swap:
+            return False
 
         return self.run_count > 0 and self.campaign.map_is_auto_search
 

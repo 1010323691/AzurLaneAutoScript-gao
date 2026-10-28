@@ -6,7 +6,6 @@ import numpy as np
 from module.base.decorator import cached_property
 from module.base.utils import random_normal_distribution_int
 from module.config.config import AzurLaneConfig
-from module.config.deep import deep_get
 from module.exception import ScriptEnd, ScriptError, RequestHumanTakeover
 from module.logger import logger
 
@@ -27,8 +26,7 @@ DIC_RECOVER_MAX = {
     'dormitory_floor_2': 150,
 }
 OATH_RECOVER = 10
-# Fleet order that swaps mob fleet and boss fleet according to emotion before each sortie
-FLEET_ORDER_AUTO_SWAP = 'fleet1_mob_fleet2_boss_auto_swap'
+# Swap mob fleet and boss fleet, used when Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap
 FLEET_ORDER_SWAP = {
     'fleet1_mob_fleet2_boss': 'fleet1_boss_fleet2_mob',
     'fleet1_boss_fleet2_mob': 'fleet1_mob_fleet2_boss',
@@ -212,19 +210,14 @@ class Emotion:
             return 2
 
     @property
-    def is_fleet_order_auto_swap(self):
+    def is_auto_swap(self):
         """
         Returns:
-            bool: If user set Fleet.FleetOrder to fleet1_mob_fleet2_boss_auto_swap.
-                Fleet_FleetOrder is overridden to a concrete order after the first check_reduce(),
-                so also check the raw config of current task.
+            bool: If mob fleet and boss fleet can be swapped according to emotion.
         """
-        if self.config.Fleet_FleetOrder == FLEET_ORDER_AUTO_SWAP:
-            return True
-        task = self.config.task
-        if task is None:
-            return False
-        return deep_get(self.config.data, keys=f'{task.command}.Fleet.FleetOrder') == FLEET_ORDER_AUTO_SWAP
+        return self.config.FLEET_ORDER_AUTO_SWAP \
+            and bool(self.config.Fleet_Fleet2) \
+            and self.config.Fleet_FleetOrder in FLEET_ORDER_SWAP
 
     def check_reduce(self, battle):
         """
@@ -238,11 +231,6 @@ class Emotion:
         Raise:
             ScriptEnd: Delay current task to prevent emotion control in the future.
         """
-        auto_swap = self.is_fleet_order_auto_swap
-        if auto_swap and self.config.Fleet_FleetOrder not in FLEET_ORDER_SWAP:
-            # First sortie in this task, start with fleet1 mob
-            self.config.override(Fleet_FleetOrder='fleet1_mob_fleet2_boss')
-
         if not self.is_calculate:
             return
 
@@ -250,19 +238,23 @@ class Emotion:
         self.record()
         self.show()
         method = self.config.Fleet_FleetOrder
-        # When swapping, boss fleet is usually the tired one,
-        # allow it to fight boss as long as its emotion is above control limit.
-        # Boss battle is the last one, emotion may recover during mob battles,
-        # and non-auto-search maps still wait emotion before boss battle.
-        recovered = self.get_recovered(method, battle, relax_boss=auto_swap)
-        if recovered > datetime.now() and auto_swap and self.config.Fleet_Fleet2:
+        if not self.is_auto_swap:
+            recovered = self.get_recovered(method, battle)
+        else:
+            # Keep current order, otherwise swap.
+            # If neither works, allow boss fleet to fight boss as long as its emotion is above control limit,
+            # because boss fleet is usually the tired one, boss battle is the last one,
+            # emotion may recover during mob battles, and non-auto-search maps wait emotion before boss battle.
             swapped = FLEET_ORDER_SWAP[method]
-            swapped_recovered = self.get_recovered(swapped, battle, relax_boss=True)
-            if swapped_recovered <= datetime.now():
-                logger.info(f'Emotion of mob fleet is not enough, swap fleet order: {method} -> {swapped}')
-                self.config.override(Fleet_FleetOrder=swapped)
-                return
-            recovered = min(recovered, swapped_recovered)
+            recovered = None
+            for order, relax in [(method, False), (swapped, False), (method, True), (swapped, True)]:
+                recover_time = self.get_recovered(order, battle, relax_boss=relax)
+                if recover_time <= datetime.now():
+                    if order != method:
+                        logger.info(f'Emotion of mob fleet is not enough, swap fleet order: {method} -> {order}')
+                        self.config.override(Fleet_FleetOrder=order)
+                    return
+                recovered = recover_time if recovered is None else min(recovered, recover_time)
 
         if recovered > datetime.now():
             logger.info('Delay current task to prevent emotion control in the future')
@@ -276,16 +268,21 @@ class Emotion:
             battle (int): Battles in this campaign
             relax_boss (bool): True to only require boss fleet above control limit,
                 not counting the emotion reduce of boss battle.
+                Not relaxed if boss fleet is set to keep happy bonus, which would be lost.
 
         Returns:
             datetime.datetime: When will all fleets have enough emotion for this campaign.
                 If already recovered, return time in the past.
         """
-        boss = 0 if relax_boss else 1
+        def boss(fleet):
+            if relax_boss and fleet.control != 'keep_exp_bonus':
+                return 0
+            return 1
+
         if method == 'fleet1_mob_fleet2_boss':
-            battle = (battle - 1, boss)
+            battle = (battle - 1, boss(self.fleet_2))
         elif method == 'fleet1_boss_fleet2_mob':
-            battle = (boss, battle - 1)
+            battle = (boss(self.fleet_1), battle - 1)
         elif method == 'fleet1_all_fleet2_standby':
             battle = (battle, 0)
         elif method == 'fleet1_standby_fleet2_all':

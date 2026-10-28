@@ -552,13 +552,13 @@
     },
     "Mode": {
       "name": "When A Task Gets Stuck",
-      "help": "Applies when clicks have no effect, the game stays on one screen too long, or in-game requirements (level, progress, stage stats, fleet setup) are not met\nRestart Game: restart the game and retry this task, stop Alas if requirements are not met (original behavior)\nSkip Task: delay this task and continue with other tasks, suitable for low level accounts\nGame will still be restarted if two tasks get stuck in a row",
+      "help": "Applies when clicks have no effect, the game stays on one screen too long, or in-game requirements (level, progress, stage stats, fleet setup) are not met\nRestart Game: restart the game and retry this task, stop Alas if requirements are not met (original behavior)\nSkip Task: delay this task, go back to main page and continue with other tasks, restart game if unable to go back, suitable for low level accounts",
       "restart": "Restart Game",
       "skip_task": "Skip Task"
     },
     "SkipDelay": {
       "name": "Delay After Skip",
-      "help": "Only works when \"Skip Task\" is selected",
+      "help": "Only works when \"Skip Task\" is selected, for stuck cases\nTasks with unmet requirements are always delayed to next server update",
       "1h": "1 hour",
       "3h": "3 hours",
       "6h": "6 hours",
@@ -1035,7 +1035,7 @@
     },
     "FleetOrder": {
       "name": "Fleet Roles",
-      "help": "With non-auto-search, alas will pick up question marks and ammunition\nWith non-auto-search and battle <=4, Alas will force the use of \"fleet1_all_fleet2_standby\"\nWith \"Swap When Low Emotion\", fleet roles are decided by calculated emotion before each sortie: if the mob fleet does not have enough emotion for this stage, the other fleet clears mobs and the original mob fleet fights boss. Wait for emotion only if neither arrangement works",
+      "help": "With non-auto-search, alas will pick up question marks and ammunition\nWith non-auto-search and battle <=4, Alas will force the use of \"fleet1_all_fleet2_standby\"\nWith \"Swap When Low Emotion\", fleet roles are decided by calculated emotion before each sortie: if the mob fleet does not have enough emotion for this stage, the other fleet clears mobs and the original mob fleet fights boss. Wait for emotion only if neither arrangement works. Auto search \"continue\" is not used, fleets are prepared before every sortie",
       "fleet1_mob_fleet2_boss": "fleet1_mob_fleet2_boss",
       "fleet1_boss_fleet2_mob": "fleet1_boss_fleet2_mob",
       "fleet1_all_fleet2_standby": "fleet1_all_fleet2_standby",

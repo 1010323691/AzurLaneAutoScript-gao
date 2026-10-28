@@ -180,6 +180,14 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
         for arg, value in self.overridden.items():
             super().__setattr__(arg, value)
 
+        # Resolve Fleet.FleetOrder=fleet1_mob_fleet2_boss_auto_swap to a concrete order,
+        # so the rest of Alas only sees concrete orders. Order is swapped in Emotion.check_reduce()
+        path = self.bound.get("Fleet_FleetOrder")
+        self.FLEET_ORDER_AUTO_SWAP = bool(path) and \
+            deep_get(self.data, keys=path) == "fleet1_mob_fleet2_boss_auto_swap"
+        if self.Fleet_FleetOrder == "fleet1_mob_fleet2_boss_auto_swap":
+            super().__setattr__("Fleet_FleetOrder", "fleet1_mob_fleet2_boss")
+
     @property
     def hoarding(self):
         minutes = int(
@@ -708,7 +716,6 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
             if self.Fleet_FleetOrder in [
                 "fleet1_mob_fleet2_boss",
                 "fleet1_boss_fleet2_mob",
-                "fleet1_mob_fleet2_boss_auto_swap",
             ]:
                 return 2
             else:
