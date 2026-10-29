@@ -25,6 +25,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   4. 地图内等待心情改用 `fleet_show_index`（`module/map/map.py`）：心情是按出击槽位记录的，反转职能时 `fleet_current_index` 是角色编号，会查错舰队。
   5. **委托条件不满足时跳过**（`module/commission/commission.py`）：点过「推荐」后，限制条件行如果仍有红色 ✗（`_commission_requirement_unmet`），抛出 `CommissionRequirementNotMet`，设置 `comm_requirement_unmet`，然后**停止派遣其余委托**：这时意味着已经没有合格的空闲舰船，换别的委托也一样派不出去。任务结束后，`run()` 把下次运行推迟到最早一个进行中委托完成的时间，也就是舰船回来时；如果没有进行中的委托，就用 `FailureInterval`。红色检测目前只在日服截图上验证过。
   6. **`task_delay` 按上限截断**：`AzurLaneConfig.next_run_limit()` 集中定义每个任务 NextRun 的上限（委托、收获 12 小时，科研 24 小时，部分大世界任务 7 天或 31 天，其余任务 24 小时）。`override()` 和 `task_delay()` 共用这份定义。
+  7. **出击战败后撤退并延迟重试**：上游的地图战只认 S/A/B 结算，战败（C/D）结算会一直等到 `GameStuckError`；在跳过模式下，主线会因此被推迟到次日。
+     - 现在 `Combat.handle_exp_info_defeat()` 点掉 `EXP_INFO_C/D`，并设置 `combat_defeated`。之后画面回到地图或关卡页时，`combat_status` 抛出 `CampaignDefeat`（`CampaignEnd` 的子类）。`expected_end` 为回调函数的地图外战斗（raid、医院、每日）不抛，仍按各自的结束条件退出。
+     - `CampaignBase.run` 捕获后调用 `handle_campaign_defeat()`：还在地图里就撤退，然后 `task_delay(minute=DEFEAT_RETRY_MINUTE)`（60 分钟），发送通知，再 `task_stop()`。
+     - 只覆盖非自律寻敌的地图战。`auto_search_combat_status` 没有改；大世界有自己的 C/D 处理，不受影响。D 素材只用日服截图验证过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -66,7 +70,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -322,6 +326,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | `GameTooManyClickError: Too many click for a button: X` | 按钮还在，但点击无效：资源到上限、游戏改版、条件不足 | 日志的 `Function calls` 定位到循环位置。例如领任务奖励时资源超上限，游戏只弹信息条，`module/reward/reward.py` 的 `_reward_mission_claim_click` 不认识这种情况 |
 | 反复点同一个关卡或页面，不进入下一步 | 点到了弹窗外，弹窗被关掉，回到上一页 | 确认坐标对应的 UI 元素真实存在。例如日服的编队侧边栏少一个标签（fork 已修） |
 | 推图不推进 | `MapAchievement=non_stop`；或关卡素材、OCR 识别失败 | `module/handler/fast_forward.py` 的 `triggered_map_stop` / `handle_map_stop` |
+| 推图打完一章就停了，任务显示完成 | Boss 战战败（日志有 `Battle Status D`、`Combat defeated`），任务被延迟。2~6 章地图脚本写死了 `FLEET_BOSS = 1`，由道中队带伤打 Boss | 错误现场截图；`campaign/campaign_main/campaign_N_1.py` 的 `Config`；fork 第 7 条 |
 | 出击中途长时间不动 | 心情等待（日志有 `EMOTION WAIT`），不是故障 | `module/combat/emotion.py`；用户配置 `Emotion.*` 或舰队职能 |
 | `GamePageUnknownError` 后 Alas 退出 | 画面被未处理的弹窗挡住，或停在没有 Home 按钮的页面 | `module/ui/ui.py` 的 `ui_additional`、`ui_page_main_popups`；用最后一张截图补素材和处理分支 |
 | `Request human takeover` 后退出 | 配置或环境问题，或同一任务连续失败 3 次 | 往前看 `logger.critical` 的提示，它通常写明了原因 |

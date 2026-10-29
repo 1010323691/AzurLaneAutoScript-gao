@@ -8,6 +8,7 @@ from module.combat.combat_manual import CombatManual
 from module.combat.hp_balancer import HPBalancer
 from module.combat.level import Level
 from module.combat.submarine import SubmarineCall
+from module.exception import CampaignDefeat
 from module.combat_ui.assets import *
 from module.handler.auto_search import AutoSearchHandler
 from module.logger import logger
@@ -21,6 +22,7 @@ from module.ui.assets import BACK_ARROW, EXERCISE_CHECK, MUNITIONS_CHECK
 class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatManual, AutoSearchHandler):
     _automation_set_timer = Timer(1)
     battle_status_click_interval = 0
+    combat_defeated = False
 
     def combat_appear(self):
         """
@@ -522,6 +524,25 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
 
         return False
 
+    def handle_exp_info_defeat(self):
+        """
+        Exp info of a lost battle, fleet defeated (C) or annihilated (D).
+
+        Returns:
+            bool:
+        """
+        if self.is_combat_executing():
+            return False
+        for button in [EXP_INFO_C, EXP_INFO_D]:
+            if self.appear_then_click(button, interval=2):
+                if not self.combat_defeated:
+                    logger.warning(f'Combat defeated, {button}')
+                self.combat_defeated = True
+                self.device.sleep((0.25, 0.5))
+                return True
+
+        return False
+
     def handle_get_ship(self, drop=None):
         """
         Args:
@@ -569,7 +590,14 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         self.device.click_record_clear()
         battle_status = False
         exp_info = False  # This is for the white screen bug in game
+        self.combat_defeated = False
         for _ in self.loop():
+
+            # Defeated in map, the remaining fleets are back in map, or back in stage if all fleets are defeated.
+            # Map operations can't continue with a fleet missing.
+            # Callable expected_end is from combats outside map (raid, hospital, daily), let them end by themselves.
+            if self.combat_defeated and not callable(expected_end)                     and (self.is_in_map() or self.is_in_stage()):
+                raise CampaignDefeat('Combat defeated')
 
             # Expected end
             if isinstance(expected_end, str):
@@ -612,6 +640,9 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
                 if not exp_info and self.handle_battle_status(drop=drop):
                     battle_status = True
                     continue
+            if self.handle_exp_info_defeat():
+                exp_info = True
+                continue
             # bunch of popup handlers
             if self.handle_popup_confirm('COMBAT_STATUS'):
                 continue
