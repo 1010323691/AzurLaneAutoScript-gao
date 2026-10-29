@@ -85,14 +85,29 @@ class TestExpInfoDefeat(unittest.TestCase):
     def test_defeat_detected(self):
         strip = np.array(Image.open(STRIP).convert('RGB'))
         self.combat.device.image = screenshot_with_strip(strip)
+        self.combat.battle_status_defeated = True
         self.assertTrue(self.combat.handle_exp_info_defeat())
         self.assertTrue(self.combat.combat_defeated)
         self.assertEqual(self.combat.device.clicked, ['EXP_INFO_D'])
         # Not a victory
         self.assertFalse(self.combat.handle_exp_info())
 
+    def test_exp_info_c_after_victory_ignored(self):
+        # EXP_INFO_C is a color check, it matched the GET_SHIP screen after a battle status S.
+        # Defeat must not be handled, otherwise get ship is no longer handled and combat status stucks.
+        from module.combat.assets import EXP_INFO_C
+        image = np.zeros((720, 1280, 3), dtype=np.uint8)
+        x1, y1, x2, y2 = EXP_INFO_C.area
+        image[y1:y2, x1:x2] = EXP_INFO_C.color
+        self.combat.device.image = image
+        self.assertTrue(EXP_INFO_C.appear_on(image))
+        self.assertFalse(self.combat.handle_exp_info_defeat())
+        self.assertFalse(self.combat.combat_defeated)
+        self.assertEqual(self.combat.device.clicked, [])
+
     def test_no_defeat(self):
         self.combat.device.image = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.combat.battle_status_defeated = True
         self.assertFalse(self.combat.handle_exp_info_defeat())
         self.assertFalse(self.combat.combat_defeated)
         self.assertEqual(self.combat.device.clicked, [])

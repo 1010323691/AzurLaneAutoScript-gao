@@ -26,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   5. **委托条件不满足时跳过**（`module/commission/commission.py`）：点过「推荐」后，限制条件行如果仍有红色 ✗（`_commission_requirement_unmet`），抛出 `CommissionRequirementNotMet`，设置 `comm_requirement_unmet`，然后**停止派遣其余委托**：这时意味着已经没有合格的空闲舰船，换别的委托也一样派不出去。任务结束后，`run()` 把下次运行推迟到最早一个进行中委托完成的时间，也就是舰船回来时；如果没有进行中的委托，就用 `FailureInterval`。红色检测目前只在日服截图上验证过。
   6. **`task_delay` 按上限截断**：`AzurLaneConfig.next_run_limit()` 集中定义每个任务 NextRun 的上限（委托、收获 12 小时，科研 24 小时，部分大世界任务 7 天或 31 天，其余任务 24 小时）。`override()` 和 `task_delay()` 共用这份定义。
   7. **出击战败后撤退并延迟重试**：上游的地图战只认 S/A/B 结算，战败（C/D）结算会一直等到 `GameStuckError`；在跳过模式下，主线会因此被推迟到次日。
-     - 现在 `Combat.handle_exp_info_defeat()` 点掉 `EXP_INFO_C/D`，并设置 `combat_defeated`。之后画面回到地图或关卡页时，`combat_status` 抛出 `CampaignDefeat`（`CampaignEnd` 的子类）。`expected_end` 不在 `MAP_EXPECTED_END` 里的地图外战斗（raid、医院、每日用回调函数，公会 Boss 用 `in_ui`）不抛，仍按各自的结束条件退出。
+     - 现在 `Combat.handle_exp_info_defeat()` 点掉 `EXP_INFO_C/D`，并设置 `combat_defeated`。前提是本场先出现过 `BATTLE_STATUS_C/D`（`battle_status_defeated`）：`EXP_INFO_C` 只是颜色检查，曾在 S 胜利后的获得新船画面上误判，并屏蔽了 `handle_get_ship`。之后画面回到地图或关卡页时，`combat_status` 抛出 `CampaignDefeat`（`CampaignEnd` 的子类）。`expected_end` 不在 `MAP_EXPECTED_END` 里的地图外战斗（raid、医院、每日用回调函数，公会 Boss 用 `in_ui`）不抛，仍按各自的结束条件退出。
      - `CampaignBase.run` 捕获后调用 `handle_campaign_defeat()`：还在地图里就撤退，然后 `task_delay(minute=DEFEAT_RETRY_MINUTE)`（60 分钟），发送通知，再 `task_stop()`。
      - 只覆盖非自律寻敌的地图战。`auto_search_combat_status` 没有改；大世界有自己的 C/D 处理，不受影响。D 素材只用日服截图验证过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。

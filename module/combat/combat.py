@@ -23,6 +23,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     _automation_set_timer = Timer(1)
     battle_status_click_interval = 0
     combat_defeated = False
+    # Battle status C or D appeared, set in handle_battle_status()
+    battle_status_defeated = False
     # expected_end of combats in map, see combat_status()
     MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
 
@@ -453,6 +455,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             return True
         if self.appear(BATTLE_STATUS_C, interval=self.battle_status_click_interval):
             logger.warning('Battle Status C')
+            self.battle_status_defeated = True
             # raise GameStuckError('Battle status C')
             if drop:
                 drop.handle_add(self)
@@ -462,6 +465,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             return True
         if self.appear(BATTLE_STATUS_D, interval=self.battle_status_click_interval):
             logger.warning('Battle Status D')
+            self.battle_status_defeated = True
             # raise GameStuckError('Battle Status D')
             if drop:
                 drop.handle_add(self)
@@ -529,10 +533,14 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     def handle_exp_info_defeat(self):
         """
         Exp info of a lost battle, fleet defeated (C) or annihilated (D).
+        Only after battle status C or D, because EXP_INFO_C is a color check
+        and may match other screens like GET_SHIP of a won battle.
 
         Returns:
             bool:
         """
+        if not self.battle_status_defeated:
+            return False
         if self.is_combat_executing():
             return False
         for button in [EXP_INFO_C, EXP_INFO_D]:
@@ -593,6 +601,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         battle_status = False
         exp_info = False  # This is for the white screen bug in game
         self.combat_defeated = False
+        self.battle_status_defeated = False
         for _ in self.loop():
 
             # Defeated in map, the remaining fleets are back in map, or back in stage if all fleets are defeated.
@@ -643,8 +652,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
                 if not exp_info and self.handle_battle_status(drop=drop):
                     battle_status = True
                     continue
+            # Don't set exp_info, which would disable handle_get_ship()
             if self.handle_exp_info_defeat():
-                exp_info = True
                 continue
             # bunch of popup handlers
             if self.handle_popup_confirm('COMBAT_STATUS'):
