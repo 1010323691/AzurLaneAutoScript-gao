@@ -169,6 +169,13 @@ class TestCombatStatusDefeat(unittest.TestCase):
         combat.combat_status(expected_end=lambda: combat.state == 'in_stage')
         self.assertTrue(combat.combat_defeated)
 
+    def test_in_ui_expected_end_not_affected(self):
+        # Guild boss combat uses expected_end='in_ui', which ends at BACK_ARROW
+        combat = FakeCombatStatus(['exp_info_d', 'in_map', 'in_ui'])
+        combat.appear = lambda button, *args, **kwargs: combat.state == 'in_ui'
+        combat.combat_status(expected_end='in_ui')
+        self.assertTrue(combat.combat_defeated)
+
     def test_victory_not_affected(self):
         combat = FakeCombatStatus(['battle', 'in_map'])
         combat.combat_status(expected_end='with_searching')

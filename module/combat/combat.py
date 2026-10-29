@@ -23,6 +23,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     _automation_set_timer = Timer(1)
     battle_status_click_interval = 0
     combat_defeated = False
+    # expected_end of combats in map, see combat_status()
+    MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
 
     def combat_appear(self):
         """
@@ -595,8 +597,9 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
 
             # Defeated in map, the remaining fleets are back in map, or back in stage if all fleets are defeated.
             # Map operations can't continue with a fleet missing.
-            # Callable expected_end is from combats outside map (raid, hospital, daily), let them end by themselves.
-            if self.combat_defeated and not callable(expected_end)                     and (self.is_in_map() or self.is_in_stage()):
+            # Combats outside map (raid, hospital, daily, guild) end by their own expected_end.
+            if self.combat_defeated and expected_end in self.MAP_EXPECTED_END \
+                    and (self.is_in_map() or self.is_in_stage()):
                 raise CampaignDefeat('Combat defeated')
 
             # Expected end
