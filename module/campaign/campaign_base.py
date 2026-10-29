@@ -210,8 +210,14 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         Returns:
             int: Battles to clear all enemies on this map, 0 if unknown.
         """
+        # MAP.spawn_data may still be the loop data of previous run, load_spawn_data() is called later in map_init()
+        # Use the same rule as Fleet.map_init(), map_is_clear_mode is known after handle_fast_forward()
+        if self.map_is_clear_mode and self.MAP.spawn_data_loop:
+            spawn_data = self.MAP.spawn_data_loop
+        else:
+            spawn_data = self.MAP._spawn_data
         battle = 0
-        for data in self.MAP.spawn_data:
+        for data in spawn_data:
             for key in ['enemy', 'siren', 'boss']:
                 battle += data.get(key, 0)
         # Mob fleet also fights boss, see FLEET_BOSS = 1 in early chapters,

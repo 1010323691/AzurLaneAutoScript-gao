@@ -133,14 +133,21 @@ class FakeClearAllCampaign:
     _map_battle_clear_all = CampaignBase._map_battle_clear_all
 
     class MAP:
-        # spawn_data of 3-4
-        spawn_data = [
-            {'battle': 0, 'enemy': 3, 'mystery': 1},
-            {'battle': 1, 'enemy': 1},
+        # spawn_data of campaign_3_4, Config inherits FLEET_BOSS = 1 from campaign_3_1
+        _spawn_data = [
+            {'battle': 0, 'enemy': 2},
+            {'battle': 1, 'enemy': 2},
             {'battle': 2, 'enemy': 2},
-            {'battle': 3, 'enemy': 1},
-            {'battle': 4, 'enemy': 1, 'boss': 1},
+            {'battle': 3, 'enemy': 1, 'boss': 1},
         ]
+        spawn_data_loop = [
+            {'battle': 0, 'enemy': 1},
+            {'battle': 1, 'boss': 1},
+        ]
+        # Loop data left by previous run in clear mode
+        spawn_data = spawn_data_loop
+
+    map_is_clear_mode = False
 
     def __init__(self, config):
         self.config = config
@@ -150,11 +157,17 @@ class FakeClearAllCampaign:
 class TestClearAllEmotion(unittest.TestCase):
     def test_battle_count(self):
         campaign = FakeClearAllCampaign(FakeCampaignConfig(119, 119))
-        # 8 enemies + 1 boss, plus boss battle counted in mob fleet when FLEET_BOSS = 1
-        self.assertEqual(campaign._map_battle_clear_all, 10)
+        # 7 enemies + 1 boss, plus boss battle counted in mob fleet when FLEET_BOSS = 1
+        self.assertEqual(campaign._map_battle_clear_all, 9)
+
+    def test_battle_count_ignores_previous_loop_data(self):
+        campaign = FakeClearAllCampaign(FakeCampaignConfig(119, 119))
+        self.assertEqual(campaign._map_battle_clear_all, 9)
+        campaign.map_is_clear_mode = True
+        self.assertEqual(campaign._map_battle_clear_all, 3)
 
     def test_swap_when_clear_all(self):
-        # 3-4 in clear mode: fleet 1 has 51, enough for battles until boss (6), not for clearing all (18)
+        # 3-4 in clear mode: fleet 1 has 51, enough for battles until boss (6), not for clearing all (16)
         c = FakeCampaignConfig(51, 117)
         self.assertEqual(check(c, battle=4), 'enter')
         self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
