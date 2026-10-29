@@ -121,6 +121,78 @@ class TestEmotionAutoSwap(unittest.TestCase):
         self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
 
 
+class FakeCampaignConfig(FakeConfig):
+    MAP_CLEAR_ALL_THIS_TIME = True
+    FLEET_BOSS = 1
+
+
+class FakeClearAllCampaign:
+    """CampaignBase.handle_clear_all_emotion() with fake map and emotion."""
+    from module.campaign.campaign_base import CampaignBase
+    handle_clear_all_emotion = CampaignBase.handle_clear_all_emotion
+    _map_battle_clear_all = CampaignBase._map_battle_clear_all
+
+    class MAP:
+        # spawn_data of 3-4
+        spawn_data = [
+            {'battle': 0, 'enemy': 3, 'mystery': 1},
+            {'battle': 1, 'enemy': 1},
+            {'battle': 2, 'enemy': 2},
+            {'battle': 3, 'enemy': 1},
+            {'battle': 4, 'enemy': 1, 'boss': 1},
+        ]
+
+    def __init__(self, config):
+        self.config = config
+        self.emotion = Emotion(config)
+
+
+class TestClearAllEmotion(unittest.TestCase):
+    def test_battle_count(self):
+        campaign = FakeClearAllCampaign(FakeCampaignConfig(119, 119))
+        # 8 enemies + 1 boss, plus boss battle counted in mob fleet when FLEET_BOSS = 1
+        self.assertEqual(campaign._map_battle_clear_all, 10)
+
+    def test_swap_when_clear_all(self):
+        # 3-4 in clear mode: fleet 1 has 51, enough for battles until boss (6), not for clearing all (18)
+        c = FakeCampaignConfig(51, 117)
+        self.assertEqual(check(c, battle=4), 'enter')
+        self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
+        FakeClearAllCampaign(c).handle_clear_all_emotion()
+        self.assertEqual(c.Fleet_FleetOrder, 'fleet1_boss_fleet2_mob')
+        self.assertEqual(c.delays, [])
+
+    def test_both_low_keeps_order_without_delay(self):
+        c = FakeCampaignConfig(51, 55)
+        FakeClearAllCampaign(c).handle_clear_all_emotion()
+        self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
+        self.assertEqual(c.delays, [])
+
+    def test_not_clear_all(self):
+        c = FakeCampaignConfig(51, 117)
+        c.MAP_CLEAR_ALL_THIS_TIME = False
+        FakeClearAllCampaign(c).handle_clear_all_emotion()
+        self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
+
+    def test_emotion_overriding_check_reduce(self):
+        # GemsEmotion overrides check_reduce(self, battle) without delay
+        class GemsLikeEmotion(Emotion):
+            def check_reduce(self, battle):
+                raise AssertionError('Overridden check_reduce should not be called')
+
+        c = FakeCampaignConfig(51, 117)
+        campaign = FakeClearAllCampaign(c)
+        campaign.emotion = GemsLikeEmotion(c)
+        campaign.handle_clear_all_emotion()
+        self.assertEqual(c.Fleet_FleetOrder, 'fleet1_boss_fleet2_mob')
+
+    def test_not_auto_swap(self):
+        c = FakeCampaignConfig(51, 117, auto_swap=False)
+        FakeClearAllCampaign(c).handle_clear_all_emotion()
+        self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
+        self.assertEqual(c.delays, [])
+
+
 class TestConfigBindAutoSwap(unittest.TestCase):
     """AzurLaneConfig.bind() resolves the pseudo fleet order, using a temporary config file."""
     name = 'zz_test_fleet_auto_swap'

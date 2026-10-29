@@ -170,6 +170,7 @@ class MapOperation(MysteryHandler, FleetPreparation, Retirement, FastForwardHand
                         self.enter_map_cancel()
                         self.handle_map_stop()
                         raise ScriptEnd(f'Reach condition: {self.config.StopCondition_MapAchievement}')
+                    self.handle_clear_all_emotion()
                     self.device.click(prep_button)
                     map_click += 1
                     map_timer.reset()
@@ -347,6 +348,13 @@ class MapOperation(MysteryHandler, FleetPreparation, Retirement, FastForwardHand
         sum_ = cv2.countNonZero(r)
         total = r.shape[0] * r.shape[1]
         return sum_ / total > 0.5
+
+    def handle_clear_all_emotion(self):
+        """
+        Check emotion again after MAP_CLEAR_ALL_THIS_TIME is known in map_get_info(),
+        before fleet preparation. Override in CampaignBase.
+        """
+        pass
 
     def handle_map_preparation(self):
         """

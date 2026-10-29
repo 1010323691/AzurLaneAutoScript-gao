@@ -190,6 +190,36 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         )
         self.config.task_stop()
 
+    def handle_clear_all_emotion(self):
+        """
+        Emotion was checked before entering map with _map_battle, battles until boss.
+        If MAP_CLEAR_ALL_THIS_TIME, all enemies are cleared and mob fleet fights much more battles,
+        swap fleet order before fleet preparation if mob fleet doesn't have enough emotion.
+        """
+        if not self.config.MAP_CLEAR_ALL_THIS_TIME:
+            return
+        battle = self._map_battle_clear_all
+        if not battle:
+            return
+        logger.info(f'MAP_CLEAR_ALL_THIS_TIME, check emotion again with {battle} battles')
+        self.emotion.check_swap(battle)
+
+    @property
+    def _map_battle_clear_all(self):
+        """
+        Returns:
+            int: Battles to clear all enemies on this map, 0 if unknown.
+        """
+        battle = 0
+        for data in self.MAP.spawn_data:
+            for key in ['enemy', 'siren', 'boss']:
+                battle += data.get(key, 0)
+        # Mob fleet also fights boss, see FLEET_BOSS = 1 in early chapters,
+        # count boss battle in mob fleet's reduce as well
+        if battle and self.config.FLEET_BOSS == 1:
+            battle += 1
+        return battle
+
     @cached_property
     def _map_battle(self):
         """

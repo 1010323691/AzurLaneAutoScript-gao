@@ -219,7 +219,7 @@ class Emotion:
             and bool(self.config.Fleet_Fleet2) \
             and self.config.Fleet_FleetOrder in FLEET_ORDER_SWAP
 
-    def check_reduce(self, battle):
+    def check_reduce(self, battle, delay=True):
         """
         Check emotion before entering a campaign.
         If Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap, choose the fleet order of this sortie,
@@ -227,11 +227,15 @@ class Emotion:
 
         Args:
             battle (int): Battles in this campaign
+            delay (bool): False to only swap fleet order if needed, without delaying current task.
+                Emotion will be waited in map if still not enough.
 
         Raise:
             ScriptEnd: Delay current task to prevent emotion control in the future.
         """
         if not self.is_calculate:
+            return
+        if not delay and not self.is_auto_swap:
             return
 
         self.update()
@@ -255,11 +259,27 @@ class Emotion:
                         self.config.override(Fleet_FleetOrder=order)
                     return
                 recovered = recover_time if recovered is None else min(recovered, recover_time)
+            if not delay:
+                logger.info(f'Emotion of both fleet orders is not enough, keep fleet order: {method}')
+                return
 
         if recovered > datetime.now():
             logger.info('Delay current task to prevent emotion control in the future')
             self.config.task_delay(target=recovered)
             raise ScriptEnd('Emotion control')
+
+    def check_swap(self, battle):
+        """
+        Only swap fleet order if mob fleet doesn't have enough emotion, without delaying current task.
+        Calls Emotion.check_reduce() explicitly, subclasses like GemsEmotion override check_reduce()
+        with a different behaviour.
+
+        Args:
+            battle (int): Battles in this campaign
+        """
+        if not self.is_auto_swap:
+            return
+        Emotion.check_reduce(self, battle, delay=False)
 
     def get_recovered(self, method, battle, relax_boss=False):
         """
