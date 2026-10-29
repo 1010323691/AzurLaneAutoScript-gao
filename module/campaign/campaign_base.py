@@ -1,15 +1,18 @@
 from module.base.decorator import Config, cached_property
 from module.campaign.campaign_ui import CampaignUI
 from module.combat.auto_search_combat import AutoSearchCombat
-from module.exception import CampaignEnd, MapEnemyMoved, ScriptError
+from module.exception import CampaignDefeat, CampaignEnd, MapEnemyMoved, ScriptError
 from module.logger import logger
 from module.map.map import Map
 from module.map.map_base import CampaignMap
+from module.notify import handle_notify
 
 
 class CampaignBase(CampaignUI, Map, AutoSearchCombat):
     FUNCTION_NAME_BASE = 'battle_'
     MAP: CampaignMap
+    # Minutes to retry after fleet defeated
+    DEFEAT_RETRY_MINUTE = 60
 
     def battle_default(self):
         if self.clear_enemy():
@@ -141,6 +144,8 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
                     self.execute_a_battle()
                 else:
                     self.auto_search_execute_a_battle()
+            except CampaignDefeat:
+                self.handle_campaign_defeat()
             except CampaignEnd:
                 logger.hr('Campaign end')
                 return True
@@ -155,6 +160,35 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
                 pass
         else:
             raise ScriptError('Battle function exhausted.')
+
+    def handle_campaign_defeat(self):
+        """
+        Withdraw after fleet defeated and retry later,
+        fighting again with the same fleets is likely to be defeated again.
+
+        Pages:
+            in: IN_MAP or stage page
+            out: stage page
+
+        Raises:
+            TaskEnd:
+        """
+        logger.hr('Campaign defeat')
+        logger.warning(f'Fleet defeated in {self.config.Campaign_Name}, '
+                       f'withdraw and retry after {self.DEFEAT_RETRY_MINUTE} minutes')
+        if self.is_in_map():
+            try:
+                self.withdraw()
+            except CampaignEnd:
+                pass
+        self.config.task_delay(minute=self.DEFEAT_RETRY_MINUTE)
+        handle_notify(
+            self.config.Error_OnePushConfig,
+            title=f"Alas <{self.config.config_name}> campaign defeated",
+            content=f"<{self.config.config_name}> fleet defeated in {self.config.Campaign_Name}, "
+                    f"retry after {self.DEFEAT_RETRY_MINUTE} minutes",
+        )
+        self.config.task_stop()
 
     @cached_property
     def _map_battle(self):

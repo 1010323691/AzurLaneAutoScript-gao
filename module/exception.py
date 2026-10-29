@@ -2,6 +2,12 @@ class CampaignEnd(Exception):
     pass
 
 
+class CampaignDefeat(CampaignEnd):
+    # Fleet defeated in campaign, exp info C or D.
+    # Inherits CampaignEnd so that callers who don't handle defeat still end the campaign.
+    pass
+
+
 class OilExhausted(Exception):
     pass
 

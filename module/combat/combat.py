@@ -8,6 +8,7 @@ from module.combat.combat_manual import CombatManual
 from module.combat.hp_balancer import HPBalancer
 from module.combat.level import Level
 from module.combat.submarine import SubmarineCall
+from module.exception import CampaignDefeat
 from module.combat_ui.assets import *
 from module.handler.auto_search import AutoSearchHandler
 from module.logger import logger
@@ -21,6 +22,11 @@ from module.ui.assets import BACK_ARROW, EXERCISE_CHECK, MUNITIONS_CHECK
 class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatManual, AutoSearchHandler):
     _automation_set_timer = Timer(1)
     battle_status_click_interval = 0
+    combat_defeated = False
+    # Battle status C or D appeared, set in handle_battle_status()
+    battle_status_defeated = False
+    # expected_end of combats in map, see combat_status()
+    MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
 
     def combat_appear(self):
         """
@@ -449,6 +455,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             return True
         if self.appear(BATTLE_STATUS_C, interval=self.battle_status_click_interval):
             logger.warning('Battle Status C')
+            self.battle_status_defeated = True
             # raise GameStuckError('Battle status C')
             if drop:
                 drop.handle_add(self)
@@ -458,6 +465,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             return True
         if self.appear(BATTLE_STATUS_D, interval=self.battle_status_click_interval):
             logger.warning('Battle Status D')
+            self.battle_status_defeated = True
             # raise GameStuckError('Battle Status D')
             if drop:
                 drop.handle_add(self)
@@ -522,6 +530,29 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
 
         return False
 
+    def handle_exp_info_defeat(self):
+        """
+        Exp info of a lost battle, fleet defeated (C) or annihilated (D).
+        Only after battle status C or D, because EXP_INFO_C is a color check
+        and may match other screens like GET_SHIP of a won battle.
+
+        Returns:
+            bool:
+        """
+        if not self.battle_status_defeated:
+            return False
+        if self.is_combat_executing():
+            return False
+        for button in [EXP_INFO_C, EXP_INFO_D]:
+            if self.appear_then_click(button, interval=2):
+                if not self.combat_defeated:
+                    logger.warning(f'Combat defeated, {button}')
+                self.combat_defeated = True
+                self.device.sleep((0.25, 0.5))
+                return True
+
+        return False
+
     def handle_get_ship(self, drop=None):
         """
         Args:
@@ -569,7 +600,16 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         self.device.click_record_clear()
         battle_status = False
         exp_info = False  # This is for the white screen bug in game
+        self.combat_defeated = False
+        self.battle_status_defeated = False
         for _ in self.loop():
+
+            # Defeated in map, the remaining fleets are back in map, or back in stage if all fleets are defeated.
+            # Map operations can't continue with a fleet missing.
+            # Combats outside map (raid, hospital, daily, guild) end by their own expected_end.
+            if self.combat_defeated and expected_end in self.MAP_EXPECTED_END \
+                    and (self.is_in_map() or self.is_in_stage()):
+                raise CampaignDefeat('Combat defeated')
 
             # Expected end
             if isinstance(expected_end, str):
@@ -612,6 +652,9 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
                 if not exp_info and self.handle_battle_status(drop=drop):
                     battle_status = True
                     continue
+            # Don't set exp_info, which would disable handle_get_ship()
+            if self.handle_exp_info_defeat():
+                continue
             # bunch of popup handlers
             if self.handle_popup_confirm('COMBAT_STATUS'):
                 continue
