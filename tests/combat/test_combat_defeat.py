@@ -8,6 +8,7 @@ from PIL import Image
 import module.config.server as server
 from module.base.resource import release_resources
 from module.campaign.campaign_base import CampaignBase
+from module.combat.auto_search_combat import AutoSearchCombat
 from module.combat.combat import Combat
 from module.config.config import TaskEnd
 from module.exception import CampaignDefeat, CampaignEnd
@@ -162,7 +163,8 @@ def no_handle(self, *args, **kwargs):
 
 for _name in ['handle_story_skip', 'handle_get_ship', 'handle_get_items', 'handle_popup_confirm',
               'handle_battle_status', 'handle_exp_info', 'handle_urgent_commission', 'handle_guild_popup_cancel',
-              'handle_vote_popup', 'handle_mission_popup_ack', 'handle_auto_search_exit', 'handle_combat_mis_click']:
+              'handle_vote_popup', 'handle_mission_popup_ack', 'handle_auto_search_exit', 'handle_combat_mis_click',
+              'handle_combat_defeat_tips']:
     setattr(FakeCombatStatus, _name, no_handle)
 
 
@@ -203,6 +205,167 @@ class TestCombatStatusDefeat(unittest.TestCase):
         self.assertFalse(combat.combat_defeated)
 
 
+class TestDefeatTips(unittest.TestCase):
+    """Tips page "DEFEAT" after fleet defeated in auto search."""
+    # Area (100, 250, 270, 420) of a JP defeat tips screen
+    CROP = os.path.join(HERE, 'defeat_tips_jp.png')
+
+    def setUp(self):
+        self.server = server.server
+        server.server = 'jp'
+        release_resources()
+        self.addCleanup(self.restore_server)
+        self.combat = Combat.__new__(Combat)
+        self.combat.config = FakeConfig()
+        self.combat.device = FakeDevice()
+        self.combat.interval_timer = {}
+
+    def restore_server(self):
+        server.server = self.server
+        release_resources()
+
+    def screenshot(self):
+        image = np.zeros((720, 1280, 3), dtype=np.uint8)
+        image[250:420, 100:270] = np.array(Image.open(self.CROP).convert('RGB'))
+        return image
+
+    def test_defeat_tips_detected(self):
+        self.combat.device.image = self.screenshot()
+        self.assertTrue(self.combat.handle_combat_defeat_tips())
+        self.assertTrue(self.combat.combat_defeated)
+        # Exp info C or D after tips can be handled
+        self.assertTrue(self.combat.battle_status_defeated)
+        self.assertEqual(self.combat.device.clicked, ['DEFEAT_TIPS'])
+
+    def test_click_back(self):
+        from module.combat.assets import DEFEAT_TIPS
+        # Click "back" at the bottom, not the shortcuts to other pages
+        x1, y1, x2, y2 = DEFEAT_TIPS.button
+        self.assertGreater(y1, 560)
+        self.assertTrue(500 < x1 < x2 < 760)
+
+    def test_no_defeat_tips(self):
+        self.combat.device.image = np.zeros((720, 1280, 3), dtype=np.uint8)
+        self.assertFalse(self.combat.handle_combat_defeat_tips())
+        self.assertFalse(self.combat.combat_defeated)
+        self.assertEqual(self.combat.device.clicked, [])
+
+
+class FakeAutoSearchStatus(AutoSearchCombat):
+    """AutoSearchCombat with screenshots replaced by a list of states."""
+
+    def __init__(self, states):
+        """
+        Args:
+            states (list[str]): State of each screenshot,
+                battle_status_d, exp_info_d, defeat_tips, auto_search_running, auto_search_menu, in_map, in_stage.
+        """
+        self.config = FakeConfig()
+        self.device = FakeDevice()
+        self.states = states
+        self.state = None
+        self.combat_defeated = False
+        self.battle_status_defeated = False
+        self._auto_search_status_confirm = False
+        self.handled = []
+
+    def loop(self, skip_first=True, timeout=None):
+        for state in self.states:
+            self.state = state
+            yield None
+        raise AssertionError('Auto search combat status not ended')
+
+    def appear(self, button, *args, **kwargs):
+        return self.state == button.name.lower()
+
+    def handle_battle_status(self, drop=None):
+        if self.state == 'battle_status_d':
+            self.battle_status_defeated = True
+            self.handled.append(self.state)
+            return True
+        return False
+
+    def handle_exp_info_defeat(self):
+        if self.battle_status_defeated and self.state == 'exp_info_d':
+            self.combat_defeated = True
+            self.handled.append(self.state)
+            return True
+        return False
+
+    def handle_combat_defeat_tips(self):
+        if self.state == 'defeat_tips':
+            self.combat_defeated = True
+            self.battle_status_defeated = True
+            self.handled.append(self.state)
+            return True
+        return False
+
+    def is_auto_search_running(self):
+        return self.state == 'auto_search_running'
+
+    def is_in_auto_search_menu(self):
+        return self.state == 'auto_search_menu'
+
+    def is_in_map(self):
+        return self.state in ['in_map', 'auto_search_running']
+
+    def is_in_stage(self):
+        return self.state == 'in_stage'
+
+
+for _name in ['_handle_auto_search_menu_missing', 'handle_get_ship', 'handle_auto_search_map_option',
+              'handle_popup_confirm', 'handle_urgent_commission', 'handle_story_skip', 'handle_guild_popup_cancel',
+              'handle_vote_popup', 'handle_mission_popup_ack', 'handle_get_items', 'handle_exp_info']:
+    setattr(FakeAutoSearchStatus, _name, no_handle)
+
+
+class TestAutoSearchDefeat(unittest.TestCase):
+    def test_defeat_tips_then_auto_search_continues(self):
+        # Real case: game skips battle status and shows tips, the other fleet may continue auto search
+        combat = FakeAutoSearchStatus(['defeat_tips', 'auto_search_running'])
+        with self.assertRaises(CampaignDefeat):
+            combat.auto_search_combat_status()
+        self.assertEqual(combat.handled, ['defeat_tips'])
+
+    def test_all_defeated_back_to_auto_search_menu(self):
+        combat = FakeAutoSearchStatus(['battle_status_d', 'exp_info_d', 'defeat_tips', 'auto_search_menu'])
+        with self.assertRaises(CampaignDefeat):
+            combat.auto_search_combat_status()
+        self.assertEqual(combat.handled, ['battle_status_d', 'exp_info_d', 'defeat_tips'])
+
+    def test_defeat_back_to_stage(self):
+        combat = FakeAutoSearchStatus(['battle_status_d', 'exp_info_d', 'in_stage'])
+        with self.assertRaises(CampaignDefeat):
+            combat.auto_search_combat_status()
+
+    def test_victory_not_affected(self):
+        combat = FakeAutoSearchStatus(['battle', 'auto_search_running'])
+        combat.auto_search_combat_status()
+        self.assertFalse(combat.combat_defeated)
+
+    def test_victory_auto_search_end(self):
+        combat = FakeAutoSearchStatus(['auto_search_menu'])
+        with self.assertRaises(CampaignEnd) as e:
+            combat.auto_search_combat_status()
+        self.assertNotIsInstance(e.exception, CampaignDefeat)
+
+    def test_execute_ends_on_defeat(self):
+        # Combat execute waits for battle status S/A/B only, it was stuck on defeat tips
+        for state in ['battle_status_d', 'defeat_tips']:
+            combat = FakeAutoSearchStatus(['loading', 'pause', state])
+            combat.is_combat_executing = lambda c=combat: 'PAUSE' if c.state == 'pause' else False
+            combat.is_combat_loading = lambda: False
+            combat.device.screenshot_interval_set = lambda *args: None
+            combat.config.Submarine_Fleet = 0
+            combat.config.Fleet_Fleet1Mode = 'combat_auto'
+            for name in ['handle_combat_automation_confirm', 'handle_submarine_call', 'handle_combat_auto',
+                         'handle_combat_manual', 'auto_search_combat_end']:
+                setattr(combat, name, lambda *args, **kwargs: False)
+            combat.submarine_call_reset = combat.combat_auto_reset = combat.combat_manual_reset = lambda: None
+            combat.auto_search_combat_execute(emotion_reduce=False, fleet_index=1)
+            self.assertEqual(combat.state, state)
+
+
 class FakeCampaign(CampaignBase):
     MAP = None
     class ENTRANCE:
@@ -240,6 +403,10 @@ class FakeCampaign(CampaignBase):
     def is_in_map(self):
         return self.in_map
 
+    def ensure_auto_search_exit(self, skip_first_screenshot=True):
+        self.auto_search_exited = True
+        return False
+
     def withdraw(self, skip_first_screenshot=True):
         self.withdrawn = True
         raise CampaignEnd('Withdraw')
@@ -261,6 +428,8 @@ class TestCampaignDefeat(unittest.TestCase):
         with self.assertRaises(TaskEnd):
             campaign.run()
         self.assertFalse(campaign.withdrawn)
+        # All fleets defeated in auto search, auto search menu is closed
+        self.assertTrue(campaign.auto_search_exited)
         self.assertEqual(campaign.config.delay, {'minute': 60})
 
     def test_defeat_is_campaign_end(self):

@@ -2,7 +2,7 @@ from module.base.timer import Timer
 from module.campaign.campaign_status import CampaignStatus
 from module.combat.assets import *
 from module.combat.combat import Combat
-from module.exception import CampaignEnd
+from module.exception import CampaignDefeat, CampaignEnd
 from module.handler.assets import AUTO_SEARCH_MAP_OPTION_ON
 from module.logger import logger
 from module.map.map_operation import MapOperation
@@ -219,6 +219,8 @@ class AutoSearchCombat(MapOperation, Combat, CampaignStatus):
         self.device.stuck_record_clear()
         self.device.click_record_clear()
         self.device.screenshot_interval_set('combat')
+        self.combat_defeated = False
+        self.battle_status_defeated = False
         for _ in self.loop():
 
             if self.handle_combat_automation_confirm():
@@ -289,6 +291,11 @@ class AutoSearchCombat(MapOperation, Combat, CampaignStatus):
                 break
             if self.auto_search_combat_end():
                 break
+            # Defeated, handled in auto_search_combat_status()
+            if self.appear(BATTLE_STATUS_C) or self.appear(BATTLE_STATUS_D) \
+                    or self.appear(DEFEAT_TIPS, offset=(20, 20)):
+                self.device.screenshot_interval_set()
+                break
 
     def auto_search_combat_status(self):
         """
@@ -302,6 +309,13 @@ class AutoSearchCombat(MapOperation, Combat, CampaignStatus):
         exp_info = False  # This is for the white screen bug in game
 
         for _ in self.loop():
+
+            # Defeated, the remaining fleet may continue auto search, or all fleets are back in stage.
+            # Withdraw and retry later, see CampaignBase.handle_campaign_defeat()
+            if self.combat_defeated and (
+                    self.is_auto_search_running() or self.is_in_auto_search_menu()
+                    or self.is_in_map() or self.is_in_stage()):
+                raise CampaignDefeat('Combat defeated')
 
             # End
             if self.is_auto_search_running():
@@ -328,6 +342,15 @@ class AutoSearchCombat(MapOperation, Combat, CampaignStatus):
             if self.handle_vote_popup():
                 continue
             if self.handle_mission_popup_ack():
+                continue
+
+            # Defeated
+            if self.appear(BATTLE_STATUS_C) or self.appear(BATTLE_STATUS_D):
+                if self.handle_battle_status():
+                    continue
+            if self.handle_exp_info_defeat():
+                continue
+            if self.handle_combat_defeat_tips():
                 continue
 
             # Handle low emotion combat
