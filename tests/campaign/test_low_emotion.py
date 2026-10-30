@@ -88,6 +88,7 @@ class FakeLowEmotionCampaign(CampaignBase):
 def make(v1=41, v2=51, states=('in_map',), fleet_show_index=2, **kwargs):
     campaign = FakeLowEmotionCampaign(FakeConfig(v1, v2, **kwargs), list(states))
     campaign.low_emotion_withdraw = True
+    campaign.low_emotion_in_map = 'in_map' in states or 'battle_preparation' in states
     campaign.fleet_show_index = fleet_show_index
     return campaign
 
@@ -157,6 +158,33 @@ class TestLowEmotionWithdraw(unittest.TestCase):
         self.assertTrue(campaign.handle_combat_low_emotion())
         self.assertEqual(campaign.popup_clicked, ['confirm IGNORE_LOW_EMOTION'])
         self.assertEqual(campaign.config.delays, [])
+
+    def test_prevent_red_face_of_other_fleet_withdraws(self):
+        # Fleet 2 in map is protected, fleet 1 allowing red face doesn't matter
+        campaign = make()
+        campaign.config.Emotion_Fleet1Control = 'prevent_red_face'
+        campaign.emotion = Emotion(campaign.config)
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertEqual(campaign.popup_clicked, ['cancel IGNORE_LOW_EMOTION'])
+        self.assertTrue(campaign.withdrawn)
+
+    def test_prevent_red_face_of_battle_fleet_confirms(self):
+        campaign = make()
+        campaign.config.Emotion_Fleet2Control = 'prevent_red_face'
+        campaign.emotion = Emotion(campaign.config)
+        self.assertTrue(campaign.handle_combat_low_emotion())
+        self.assertEqual(campaign.popup_clicked, ['confirm IGNORE_LOW_EMOTION'])
+
+    def test_prevent_red_face_of_one_fleet_entering_map_withdraws(self):
+        # Popup when entering map doesn't tell which fleet is low
+        campaign = make(states=['fleet_preparation'])
+        campaign.config.Emotion_Fleet2Control = 'prevent_red_face'
+        campaign.emotion = Emotion(campaign.config)
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertEqual(campaign.popup_clicked, ['cancel IGNORE_LOW_EMOTION'])
+        self.assertTrue(campaign.cancelled)
 
     def test_not_running_campaign_keeps_default(self):
         # Coalition and daemon inherit CampaignBase but don't run it, they don't catch ScriptEnd

@@ -22,6 +22,8 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
     # Set in run(), low emotion popup is withdrawn only when running a campaign map.
     # Other subclasses (coalition, daemon) don't catch ScriptEnd, keep the default behaviour.
     low_emotion_withdraw = False
+    # Set in run() after entering map, low emotion popup in map is about fleet_show_index only
+    low_emotion_in_map = False
 
     def battle_default(self):
         if self.clear_enemy():
@@ -133,9 +135,11 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
 
         # Enter map
         self.low_emotion_withdraw = True
+        self.low_emotion_in_map = False
         self.emotion.check_reduce(self._map_battle)
         self.ENTRANCE.area = self.ENTRANCE.button
         self.enter_map(self.ENTRANCE, mode=self.config.Campaign_Mode)
+        self.low_emotion_in_map = True
 
         # Map init
         if not self.map_is_auto_search:
@@ -211,8 +215,9 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         """
         if not self.low_emotion_withdraw or self.emotion.is_ignore:
             return super().handle_combat_low_emotion()
-        if min(fleet.limit for fleet in self.emotion.fleets) < self.LOW_EMOTION_POPUP_VALUE:
-            # Emotion control is prevent_red_face, fighting with low emotion is allowed
+        if max(fleet.limit for fleet in self._low_emotion_fleets) < self.LOW_EMOTION_POPUP_VALUE:
+            # Emotion control is prevent_red_face, fighting with low emotion is allowed.
+            # Popup when entering map doesn't tell which fleet is low, all fleets have to allow it.
             result = self.handle_popup_confirm('IGNORE_LOW_EMOTION')
             if result:
                 # Avoid clicking AUTO_SEARCH_MAP_OPTION_OFF
@@ -222,6 +227,17 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
             return False
         self.handle_low_emotion_withdraw()
         return True
+
+    @property
+    def _low_emotion_fleets(self):
+        """
+        Returns:
+            list[FleetEmotion]: Fleets that may trigger the low emotion popup.
+        """
+        if self.low_emotion_in_map:
+            return [self.emotion.fleets[self.fleet_show_index - 1]]
+        else:
+            return self.emotion.fleets
 
     def handle_low_emotion_withdraw(self):
         """

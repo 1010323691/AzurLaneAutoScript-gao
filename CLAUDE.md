@@ -32,7 +32,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 自律寻敌模式：游戏不等点击 D 结算，直接停在「DEFEAT / 艦隊戦力を強化しよう！」提示页（素材 `DEFEAT_TIPS`：锚图标模板匹配，点底部「戻る」）。`auto_search_combat_execute` 遇到 C/D 结算或提示页就结束等待；`auto_search_combat_status` 由 `handle_combat_defeat_tips()` 点掉提示页并设置 `combat_defeated`，之后回到自律中、自律结算菜单、地图或关卡页时抛 `CampaignDefeat`。`handle_campaign_defeat()` 先 `ensure_auto_search_exit()` 关掉自律结算菜单再撤退。普通战斗的 `combat_execute` / `combat_status` 也会点掉这个提示页。点「戻る」之后回到哪个画面还没在真机上确认过。大世界有自己的 C/D 处理，不受影响。D 素材和提示页素材只用日服截图验证过。
   8. **低心情弹窗时撤退并推迟**：ALAS 只推算心情；主线、活动等任务各记各的心情，和手动游玩一起用同一批舰队时，推算值会比实际高。游戏弹出低心情确认框（实际心情 30 以下）时，上游只在 `Emotion.Mode` 含 `ignore` 时点确定，否则一直等到 `GameStuckError`，跳过模式下任务会被推迟到次日。
      - 现在 `CampaignBase.handle_combat_low_emotion()` 点「取消」，再由 `handle_low_emotion_withdraw()` 撤退（关卡准备界面则退出准备）。然后把相关舰队的心情记录校正为 `LOW_EMOTION_POPUP_VALUE`（30）：地图内只校正 `fleet_show_index` 那一队，进图时两队都校正。最后用 `check_reduce` 推迟到心情恢复，抛 `ScriptEnd`。
-     - 只在 `CampaignBase.run()` 里生效（`low_emotion_withdraw`）：联动活动、daemon 也继承 `CampaignBase`，但不捕获 `ScriptEnd`，保持原行为。心情控制为「防止红脸」（下限低于 30）时改为点确定继续出击。`GemsFarming` 有自己的覆盖，不受影响。
+     - 只在 `CampaignBase.run()` 里生效（`low_emotion_withdraw`）：联动活动、daemon 也继承 `CampaignBase`，但不捕获 `ScriptEnd`，保持原行为。心情控制为「防止红脸」（下限低于 30）时改为点确定继续出击：地图内只看 `fleet_show_index` 那一队的设置，进图时（不知道是哪一队）要两队都是「防止红脸」。`GemsFarming` 有自己的覆盖，不受影响。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
