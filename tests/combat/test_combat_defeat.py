@@ -218,6 +218,47 @@ class TestCombatStatusInStageMissing(unittest.TestCase):
             combat.combat_status(expected_end='in_stage')
 
 
+class FakeBattleStatus(Combat):
+    """handle_battle_status() with appear() replaced by a set of appearing buttons."""
+
+    def __init__(self):
+        self.config = FakeConfig()
+        self.device = FakeDevice()
+        self.appearing = set()
+
+    def is_combat_executing(self):
+        return 'PAUSE' in self.appearing
+
+    def appear(self, button, offset=0, interval=0, similarity=0.85, threshold=10):
+        return button.name in self.appearing
+
+    def battle(self, *names):
+        self.appearing = set(names)
+        return self.handle_battle_status()
+
+
+class TestBattleStatusAfterWon(unittest.TestCase):
+    def test_get_ship_misread_as_d(self):
+        # Real case: CN, BATTLE_STATUS_S clicked, then GET_SHIP matched BATTLE_STATUS_D
+        combat = FakeBattleStatus()
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        self.assertFalse(combat.battle('BATTLE_STATUS_D', 'GET_SHIP'))
+        self.assertFalse(combat.battle('BATTLE_STATUS_C'))
+        self.assertFalse(combat.battle_status_defeated)
+        self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S'])
+
+    def test_defeated(self):
+        combat = FakeBattleStatus()
+        self.assertTrue(combat.battle('BATTLE_STATUS_D'))
+        self.assertTrue(combat.battle_status_defeated)
+
+    def test_combat_status_resets(self):
+        combat = FakeCombatStatusBattle(['in_map'])
+        combat.battle_status_won = True
+        combat.combat_status(expected_end='no_searching')
+        self.assertFalse(combat.battle_status_won)
+
+
 class TestCombatStatusDefeat(unittest.TestCase):
     def test_defeat_back_to_map(self):
         # Without defeat handling, with_searching would end combat status and continue the map
