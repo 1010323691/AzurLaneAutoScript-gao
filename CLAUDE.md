@@ -91,6 +91,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/Lib/site-packages/adbutils/binaries/adb.exe -s emulator-5554 exec-out screencap -p > shot.png
 ```
 
+**macOS**：`Alas.command` 是一键启动脚本，双击即可（作用同 `deploy/launcher/Alas.bat`，但不跑 `deploy.installer`），日志在 `log/electron.txt`。这里只能跑 GUI 和桌面壳，没有 `mxnet`、adb，调度器跑不了真实任务。需要先准备好：
+- `.venv`：系统 Python 3 建虚拟环境，装 GUI 用到的依赖（版本放宽，`requirements.txt` 在 arm64 上装不上）；Node 用 `pip install nodejs-wheel`。
+- `config/deploy.yaml`：从 `config/deploy.template.yaml` 复制，`PythonExecutable` 改成 `./.venv/bin/python`，并按第 0 节关闭自动更新。
+- `webapp/node_modules`：`package-lock.json` 与 `package.json` 不同步，`yarn.lock` 的镜像证书已过期。要在临时目录把 `yarn.lock` 的地址改成 `registry.npmjs.org` 再 `yarn install --frozen-lockfile --ignore-scripts`（避免 `simple-git-hooks` 写 `.git/hooks`），然后 `node node_modules/electron/install.js` 下载 Electron。
+- 构建：在 `webapp/` 下 `MODE=production npm run build`。
+
 **离线调试单个模块**：很多模块文件末尾有 `if __name__ == '__main__':` 调试入口。`ModuleBase('alas', task='Main')` 会自动构造 config 和 Device，构造后可以设置 `self.image_file = '<截图路径>'`，用本地截图代替实时截图（见 `module/research/research.py` 末尾的示例）。
 
 ## 3. 目录结构（只列需要知道的）
