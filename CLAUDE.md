@@ -77,7 +77,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.ocr.test_numpy_ocr
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -91,9 +91,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/Lib/site-packages/adbutils/binaries/adb.exe -s emulator-5554 exec-out screencap -p > shot.png
 ```
 
-**macOS**：`Alas.command` 是一键启动脚本，双击即可（作用同 `deploy/launcher/Alas.bat`，但不跑 `deploy.installer`），日志在 `log/electron.txt`。这里只能跑 GUI 和桌面壳，没有 `mxnet`、adb，调度器跑不了真实任务。需要先准备好：
-- `.venv`：系统 Python 3 建虚拟环境，装 GUI 用到的依赖（版本放宽，`requirements.txt` 在 arm64 上装不上）；Node 用 `pip install nodejs-wheel`。
-- `config/deploy.yaml`：从 `config/deploy.template.yaml` 复制，`PythonExecutable` 改成 `./.venv/bin/python`，并按第 0 节关闭自动更新。
+**macOS**：`Alas.command` 是一键启动脚本，双击即可（作用同 `deploy/launcher/Alas.bat`，但不跑 `deploy.installer`），日志在 `log/electron.txt`。mxnet 在 macOS 上没有可用的包，OCR 改用 `module/ocr/numpy_ocr.py`（纯 numpy 跑同一批模型，见第 6 节）。模拟器用 BlueStacks 时，adb 用它自带的 `/Applications/BlueStacks.app/Contents/MacOS/hd-adb`，序列号 `127.0.0.1:5555`。需要先准备好：
+- `.venv`：`/usr/bin/python3 -m venv .venv`，再 `.venv/bin/pip install -r deploy/macos/requirements.txt`（根目录的 `requirements.txt` 在 arm64 上装不上；清单里包含 Node）。
+- `config/deploy.yaml`：从 `config/deploy.template.yaml` 复制，`PythonExecutable` 改成 `./.venv/bin/python`，`AdbExecutable` 改成模拟器的 adb（BlueStacks 见上），`GitExecutable` 改成 `/usr/bin/git`，`InstallDependencies` 改成 `false`（否则在 GUI 里点更新会往 `.venv` 装根目录那份 Python 3.7 的依赖），并按第 0 节关闭自动更新。
 - `webapp/node_modules`：`package-lock.json` 与 `package.json` 不同步，`yarn.lock` 的镜像证书已过期。要在临时目录把 `yarn.lock` 的地址改成 `registry.npmjs.org` 再 `yarn install --frozen-lockfile --ignore-scripts`（避免 `simple-git-hooks` 写 `.git/hooks`），然后 `node node_modules/electron/install.js` 下载 Electron。
 - 构建：在 `webapp/` 下 `MODE=production npm run build`。
 
@@ -308,6 +308,8 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
   - 只扫描 `assets/cn` 下已有的模块目录：**新素材必须先有 cn 版本**；其他服务器缺图时沿用 cn 的图。
 - **OCR**：
   - 实现：`module/ocr/al_ocr.py` 的 `AlOcr(CnOcr)`（cnocr 1.2 / MXNet），模型在 `bin/cnocr_models/`，懒加载（`module/ocr/models.py`）。
+  - 无 mxnet 时的后端：`module/ocr/backend.py` 在 `cnocr` 或 `mxnet` 没有安装时（如 macOS arm64）换成 `module/ocr/numpy_ocr.py` 的 `NumpyOcr`；其他导入错误照常抛出，避免 mxnet 损坏时静默换后端。它按 `*-symbol.json` 解释计算图，读取 `.params` 权重，不需要 mxnet；图里出现未实现的算子或属性时直接报错（`check_node`）。预处理和解码放在 `module/ocr/al_ocr_base.py` 的 `AlOcrBase`，由两个后端共用。`module/ocr/line_split.py` 是从 cnocr 原样复制的，因为 cnocr 的包入口会导入 mxnet。GRU 参数顺序是「两个方向的权重，再两个方向的偏置」，错了的话小字符集模型仍能读对，大字符集模型会输出乱码。
+  - 与 MXNet 对比：还没有做过。在有 mxnet 的机器上跑 `python -m dev_tools.ocr_golden`，把生成的 `tests/ocr/mxnet_golden.npz` 拿过来，`tests.ocr.test_numpy_ocr` 就会逐值对比；没有这个文件时对比测试会跳过。
   - 常用类（`module/ocr/ocr.py`）：`Ocr`、`Digit`、`DigitCounter`（读取「x/y」）、`Duration`，以及对应的 `*Yuv` 变体。
   - `lang='azur_lane'` 在日服会自动换成 `azur_lane_jp`。
   - 可选 OCR 服务：`deploy.yaml` 的 `UseOcrServer`，实现见 `module/ocr/rpc.py`。

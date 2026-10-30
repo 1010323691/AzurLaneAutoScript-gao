@@ -185,7 +185,7 @@ class ModelProxyFactory:
 def start_ocr_server(port=22268):
     import zerorpc
     import zmq
-    from module.ocr.al_ocr import AlOcr
+    from module.ocr.backend import AlOcr
     from module.ocr.models import OcrModel
 
     class OCRServer(OcrModel):
