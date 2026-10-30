@@ -27,6 +27,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     battle_status_defeated = False
     # expected_end of combats in map, see combat_status()
     MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
+    # Seconds staying in map after battle, when expecting in_stage
+    IN_STAGE_MISSING_SECOND = 5
 
     def combat_appear(self):
         """
@@ -623,6 +625,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         exp_info = False  # This is for the white screen bug in game
         self.combat_defeated = False
         self.battle_status_defeated = False
+        in_map_timer = Timer(self.IN_STAGE_MISSING_SECOND, count=self.IN_STAGE_MISSING_SECOND * 2)
         for _ in self.loop():
 
             # Defeated in map, the remaining fleets are back in map, or back in stage if all fleets are defeated.
@@ -645,6 +648,16 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             if callable(expected_end):
                 if expected_end():
                     break
+            # Expected boss, but a moving siren intercepted the fleet on the way.
+            # Game is back in map with boss still there, end combat status and let fleet walking retry.
+            # Stage page appears within 2s after a boss battle, so map staying a few seconds is not a boss.
+            if expected_end == 'in_stage' and (battle_status or exp_info) and self.is_in_map():
+                in_map_timer.start()
+                if in_map_timer.reached():
+                    logger.warning('Expected in_stage but back in map, boss battle not reached')
+                    break
+            else:
+                in_map_timer.clear()
 
             if self.handle_story_skip(drop=drop):
                 continue

@@ -1,5 +1,6 @@
 """Tests for withdrawing from campaign after fleet defeated (no device interaction)."""
 import os
+import time
 import unittest
 
 import numpy as np
@@ -166,6 +167,55 @@ for _name in ['handle_story_skip', 'handle_get_ship', 'handle_get_items', 'handl
               'handle_vote_popup', 'handle_mission_popup_ack', 'handle_auto_search_exit', 'handle_combat_mis_click',
               'handle_combat_defeat_tips']:
     setattr(FakeCombatStatus, _name, no_handle)
+
+
+class FakeCombatStatusBattle(FakeCombatStatus):
+    """Combat status with battle status clicked."""
+    IN_STAGE_MISSING_SECOND = 0
+
+    def loop(self, skip_first=True, timeout=None):
+        for _ in super().loop(skip_first=skip_first, timeout=timeout):
+            # Timer needs time passed, time() resolution is about 16ms on Windows
+            time.sleep(0.02)
+            yield None
+
+    def handle_battle_status(self, drop=None):
+        return self.state == 'battle'
+
+
+class TestCombatStatusInStageMissing(unittest.TestCase):
+    def test_boss_intercepted_back_in_map(self):
+        # Moving siren intercepted the fleet walking to boss, game is back in map
+        combat = FakeCombatStatusBattle(['battle'] + ['in_map'] * 3)
+        combat.combat_status(expected_end='in_stage')
+        self.assertEqual(combat.state, 'in_map')
+
+    def test_boss_in_stage(self):
+        combat = FakeCombatStatusBattle(['battle', 'in_map', 'in_stage'])
+        with self.assertRaises(CampaignEnd):
+            combat.combat_status(expected_end='in_stage')
+
+    def test_in_map_timer_reset_by_other_screen(self):
+        combat = FakeCombatStatusBattle(['battle', 'in_map', 'battle', 'in_map', 'in_stage'])
+        with self.assertRaises(CampaignEnd):
+            combat.combat_status(expected_end='in_stage')
+
+    def test_in_map_before_battle_status(self):
+        # In map before battle status is not the end of combat
+        combat = FakeCombatStatusBattle(['in_map'] * 3 + ['battle', 'in_stage'])
+        with self.assertRaises(CampaignEnd):
+            combat.combat_status(expected_end='in_stage')
+
+    def test_waits_a_few_seconds(self):
+        combat = FakeCombatStatusBattle(['battle'] + ['in_map'] * 3 + ['in_stage'])
+        combat.IN_STAGE_MISSING_SECOND = 5
+        with self.assertRaises(CampaignEnd):
+            combat.combat_status(expected_end='in_stage')
+
+    def test_defeated_back_in_map(self):
+        combat = FakeCombatStatusBattle(['battle', 'exp_info_d', 'in_map'])
+        with self.assertRaises(CampaignDefeat):
+            combat.combat_status(expected_end='in_stage')
 
 
 class TestCombatStatusDefeat(unittest.TestCase):
