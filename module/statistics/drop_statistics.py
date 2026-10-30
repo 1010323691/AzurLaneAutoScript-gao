@@ -6,7 +6,7 @@ from tqdm import tqdm
 from module.base.decorator import cached_property
 from module.base.utils import load_image
 from module.logger import logger
-from module.ocr.al_ocr import AlOcr
+from module.ocr.backend import AlOcr
 from module.ocr.ocr import Ocr
 from module.statistics.battle_status import BattleStatusStatistics
 from module.statistics.campaign_bonus import CampaignBonusStatistics
