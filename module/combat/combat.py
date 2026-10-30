@@ -419,6 +419,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             if self.handle_battle_status(drop=drop) \
                     or self.handle_get_items(drop=drop):
                 break
+            if self.appear(DEFEAT_TIPS, offset=(20, 20)):
+                break
 
     def handle_battle_status(self, drop=None):
         """
@@ -553,6 +555,25 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
 
         return False
 
+    def handle_combat_defeat_tips(self):
+        """
+        Tips page of a lost battle, "DEFEAT" with shortcuts to strengthen fleets, click back.
+        Shown when fleet defeated in auto search, game doesn't wait for clicks on battle status D.
+
+        Returns:
+            bool:
+        """
+        if self.appear(DEFEAT_TIPS, offset=(20, 20), interval=2):
+            if not self.combat_defeated:
+                logger.warning(f'Combat defeated, {DEFEAT_TIPS}')
+            self.combat_defeated = True
+            # Exp info C or D may come after
+            self.battle_status_defeated = True
+            self.device.click(DEFEAT_TIPS)
+            return True
+
+        return False
+
     def handle_get_ship(self, drop=None):
         """
         Args:
@@ -654,6 +675,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
                     continue
             # Don't set exp_info, which would disable handle_get_ship()
             if self.handle_exp_info_defeat():
+                continue
+            if self.handle_combat_defeat_tips():
                 continue
             # bunch of popup handlers
             if self.handle_popup_confirm('COMBAT_STATUS'):

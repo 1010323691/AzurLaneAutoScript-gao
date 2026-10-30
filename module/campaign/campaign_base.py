@@ -1,11 +1,15 @@
 from module.base.decorator import Config, cached_property
 from module.campaign.campaign_ui import CampaignUI
+from module.combat.assets import BATTLE_PREPARATION
 from module.combat.auto_search_combat import AutoSearchCombat
-from module.exception import CampaignDefeat, CampaignEnd, MapEnemyMoved, ScriptError
+from module.exception import CampaignDefeat, CampaignEnd, MapEnemyMoved, ScriptEnd, ScriptError
 from module.logger import logger
+from module.handler.assets import AUTO_SEARCH_MAP_OPTION_OFF
+from module.map.assets import FLEET_PREPARATION, MAP_PREPARATION, MAP_PREPARATION_HARD
 from module.map.map import Map
 from module.map.map_base import CampaignMap
 from module.notify import handle_notify
+from module.ui.assets import BACK_ARROW
 
 
 class CampaignBase(CampaignUI, Map, AutoSearchCombat):
@@ -13,6 +17,13 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
     MAP: CampaignMap
     # Minutes to retry after fleet defeated
     DEFEAT_RETRY_MINUTE = 60
+    # Game shows low emotion popup when emotion is below this value (yellow face)
+    LOW_EMOTION_POPUP_VALUE = 30
+    # Set in run(), low emotion popup is withdrawn only when running a campaign map.
+    # Other subclasses (coalition, daemon) don't catch ScriptEnd, keep the default behaviour.
+    low_emotion_withdraw = False
+    # Set in run() after entering map, low emotion popup in map is about fleet_show_index only
+    low_emotion_in_map = False
 
     def battle_default(self):
         if self.clear_enemy():
@@ -123,9 +134,12 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         logger.hr(self.ENTRANCE, level=2)
 
         # Enter map
+        self.low_emotion_withdraw = True
+        self.low_emotion_in_map = False
         self.emotion.check_reduce(self._map_battle)
         self.ENTRANCE.area = self.ENTRANCE.button
         self.enter_map(self.ENTRANCE, mode=self.config.Campaign_Mode)
+        self.low_emotion_in_map = True
 
         # Map init
         if not self.map_is_auto_search:
@@ -167,7 +181,7 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         fighting again with the same fleets is likely to be defeated again.
 
         Pages:
-            in: IN_MAP or stage page
+            in: IN_MAP, stage page, or auto search menu
             out: stage page
 
         Raises:
@@ -176,6 +190,8 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         logger.hr('Campaign defeat')
         logger.warning(f'Fleet defeated in {self.config.Campaign_Name}, '
                        f'withdraw and retry after {self.DEFEAT_RETRY_MINUTE} minutes')
+        # All fleets defeated in auto search
+        self.ensure_auto_search_exit()
         if self.is_in_map():
             try:
                 self.withdraw()
@@ -189,6 +205,102 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
                     f"retry after {self.DEFEAT_RETRY_MINUTE} minutes",
         )
         self.config.task_stop()
+
+    def handle_combat_low_emotion(self):
+        """
+        Overwrite info_handler.handle_combat_low_emotion()
+        If not ignoring low emotion, cancel the popup instead of waiting until GameStuckError.
+        The popup means calculated emotion is higher than the real one,
+        usually because other tasks or manual play used the same fleets.
+        """
+        if not self.low_emotion_withdraw or self.emotion.is_ignore:
+            return super().handle_combat_low_emotion()
+        if max(fleet.limit for fleet in self._low_emotion_fleets) < self.LOW_EMOTION_POPUP_VALUE:
+            # Emotion control is prevent_red_face, fighting with low emotion is allowed.
+            # Popup when entering map doesn't tell which fleet is low, all fleets have to allow it.
+            result = self.handle_popup_confirm('IGNORE_LOW_EMOTION')
+            if result:
+                # Avoid clicking AUTO_SEARCH_MAP_OPTION_OFF
+                self.interval_reset(AUTO_SEARCH_MAP_OPTION_OFF)
+            return result
+        if not self.handle_popup_cancel('IGNORE_LOW_EMOTION'):
+            return False
+        self.handle_low_emotion_withdraw()
+        return True
+
+    @property
+    def _low_emotion_fleets(self):
+        """
+        Returns:
+            list[FleetEmotion]: Fleets that may trigger the low emotion popup.
+        """
+        if self.low_emotion_in_map:
+            return [self.emotion.fleets[self.fleet_show_index - 1]]
+        else:
+            return self.emotion.fleets
+
+    def handle_low_emotion_withdraw(self):
+        """
+        Withdraw after low emotion popup cancelled, correct calculated emotion,
+        and delay current task until emotion recovered.
+
+        Pages:
+            in: low emotion popup cancelled
+            out: stage page
+
+        Raises:
+            ScriptEnd: Emotion control, task delayed.
+        """
+        logger.hr('Emotion withdraw')
+        in_preparation = False
+        for _ in self.loop():
+            if self.handle_story_skip():
+                continue
+            if self.handle_popup_cancel('IGNORE_LOW_EMOTION'):
+                continue
+
+            if self.appear(BATTLE_PREPARATION, offset=(20, 20), interval=2):
+                self.device.click(BACK_ARROW)
+                continue
+            if self.handle_auto_search_exit():
+                continue
+
+            # End
+            if self.is_in_stage():
+                break
+            if self.is_in_map():
+                try:
+                    self.withdraw()
+                except CampaignEnd:
+                    pass
+                break
+            if self.appear(FLEET_PREPARATION, offset=(20, 50)) \
+                    or self.appear(MAP_PREPARATION, offset=(20, 20)) \
+                    or self.appear(MAP_PREPARATION_HARD, offset=(20, 20)):
+                in_preparation = True
+                self.enter_map_cancel()
+                break
+
+        # Popup shown when entering map checks both fleets, otherwise it's the fleet about to battle
+        if in_preparation:
+            fleets = self.emotion.fleets
+        else:
+            fleets = [self.emotion.fleets[self.fleet_show_index - 1]]
+        self.emotion.update()
+        for fleet in fleets:
+            if fleet.current > self.LOW_EMOTION_POPUP_VALUE:
+                logger.warning(f'Low emotion popup, correct emotion of fleet {fleet.fleet}: '
+                               f'{fleet.current} -> {self.LOW_EMOTION_POPUP_VALUE}')
+                fleet.current = self.LOW_EMOTION_POPUP_VALUE
+        self.emotion.record()
+
+        # Delay until emotion is enough for this map, raise ScriptEnd
+        self.emotion.check_reduce(self._map_battle)
+        # Still enough for some fleet order, but fleets in popup need to recover anyway
+        recovered = max(fleet.get_recovered(self.emotion.reduce_per_battle) for fleet in fleets)
+        logger.info('Delay current task to prevent emotion control in the future')
+        self.config.task_delay(target=recovered)
+        raise ScriptEnd('Emotion control')
 
     def handle_clear_all_emotion(self):
         """
