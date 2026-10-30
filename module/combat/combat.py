@@ -25,6 +25,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     combat_defeated = False
     # Battle status C or D appeared, set in handle_battle_status()
     battle_status_defeated = False
+    # Battle status S, A or B appeared, set in handle_battle_status()
+    battle_status_won = False
     # expected_end of combats in map, see combat_status()
     MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
     # Seconds staying in map after battle, when expecting in_stage
@@ -249,6 +251,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         logger.info('Combat preparation.')
         self.device.stuck_record_clear()
         self.device.click_record_clear()
+        # A new battle, daemon calls handle_battle_status() without combat_status()
+        self.battle_status_won = False
         skip_first_screenshot = True
         interval_set = False
 
@@ -380,6 +384,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             drop (DropImage):
         """
         logger.info('Combat execute')
+        self.battle_status_won = False
         self.submarine_call_reset()
         self.combat_auto_reset()
         self.combat_manual_reset()
@@ -439,6 +444,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
                 drop.handle_add(self)
             else:
                 self.device.sleep((0.25, 0.5))
+            self.battle_status_won = True
             self.device.click(BATTLE_STATUS_S)
             return True
         if self.appear(BATTLE_STATUS_A, interval=self.battle_status_click_interval):
@@ -447,6 +453,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
                 drop.handle_add(self)
             else:
                 self.device.sleep((0.25, 0.5))
+            self.battle_status_won = True
             self.device.click(BATTLE_STATUS_A)
             return True
         if self.appear(BATTLE_STATUS_B, interval=self.battle_status_click_interval):
@@ -455,8 +462,13 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
                 drop.handle_add(self)
             else:
                 self.device.sleep((0.25, 0.5))
+            self.battle_status_won = True
             self.device.click(BATTLE_STATUS_B)
             return True
+        # BATTLE_STATUS_C and BATTLE_STATUS_D are color checks of a grey strip,
+        # which may match GET_SHIP of a won battle. A won battle can't be lost.
+        if self.battle_status_won:
+            return False
         if self.appear(BATTLE_STATUS_C, interval=self.battle_status_click_interval):
             logger.warning('Battle Status C')
             self.battle_status_defeated = True
@@ -625,6 +637,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         exp_info = False  # This is for the white screen bug in game
         self.combat_defeated = False
         self.battle_status_defeated = False
+        self.battle_status_won = False
         in_map_timer = Timer(self.IN_STAGE_MISSING_SECOND, count=self.IN_STAGE_MISSING_SECOND * 2)
         for _ in self.loop():
 
