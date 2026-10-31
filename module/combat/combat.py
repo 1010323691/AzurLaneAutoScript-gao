@@ -1,5 +1,6 @@
 import numpy as np
 
+from module.base.decorator import cached_property
 from module.base.timer import Timer
 from module.base.utils import color_similar, get_color
 from module.combat.assets import *
@@ -31,11 +32,23 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     battle_status_grade = None
     # Exp info of another grade staying this long means battle status was misread, accept it
     EXP_INFO_GRADE_SECOND = 5
-    _exp_info_grade_timer = Timer(EXP_INFO_GRADE_SECOND, count=EXP_INFO_GRADE_SECOND * 2)
     # expected_end of combats in map, see combat_status()
     MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
     # Seconds staying in map after battle, when expecting in_stage
     IN_STAGE_MISSING_SECOND = 5
+
+    @cached_property
+    def _exp_info_grade_timer(self):
+        # Per instance, a class level Timer would be shared by all combats
+        return Timer(self.EXP_INFO_GRADE_SECOND, count=self.EXP_INFO_GRADE_SECOND * 2)
+
+    def battle_status_reset(self):
+        """
+        Reset battle status of a new battle.
+        """
+        self.battle_status_won = False
+        self.battle_status_grade = None
+        self._exp_info_grade_timer.clear()
 
     def combat_appear(self):
         """
@@ -257,8 +270,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         self.device.stuck_record_clear()
         self.device.click_record_clear()
         # A new battle, daemon calls handle_battle_status() without combat_status()
-        self.battle_status_won = False
-        self.battle_status_grade = None
+        self.battle_status_reset()
         skip_first_screenshot = True
         interval_set = False
 
@@ -390,8 +402,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             drop (DropImage):
         """
         logger.info('Combat execute')
-        self.battle_status_won = False
-        self.battle_status_grade = None
+        self.battle_status_reset()
         self.submarine_call_reset()
         self.combat_auto_reset()
         self.combat_manual_reset()
@@ -664,8 +675,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         exp_info = False  # This is for the white screen bug in game
         self.combat_defeated = False
         self.battle_status_defeated = False
-        self.battle_status_won = False
-        self.battle_status_grade = None
+        self.battle_status_reset()
         in_map_timer = Timer(self.IN_STAGE_MISSING_SECOND, count=self.IN_STAGE_MISSING_SECOND * 2)
         for _ in self.loop():
 

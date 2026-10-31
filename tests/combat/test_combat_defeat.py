@@ -311,6 +311,18 @@ class TestExpInfoGrade(unittest.TestCase):
             time.sleep(0.03)
         self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S'])
 
+    def test_timer_not_shared_and_reset(self):
+        # A started timer must not make another combat or the next battle accept a misread at once
+        first = FakeBattleStatus()
+        first.battle('BATTLE_STATUS_S')
+        self.exp_info(first, 'EXP_INFO_B')
+        self.assertTrue(first._exp_info_grade_timer.started())
+        second = FakeBattleStatus()
+        self.assertFalse(second._exp_info_grade_timer.started())
+        first.battle_status_reset()
+        self.assertFalse(first._exp_info_grade_timer.started())
+        self.assertIsNone(first.battle_status_grade)
+
     def test_grade_a_and_b(self):
         for grade in ['A', 'B']:
             combat = FakeBattleStatus()
