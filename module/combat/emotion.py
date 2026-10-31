@@ -5,8 +5,9 @@ import numpy as np
 
 from module.base.decorator import cached_property
 from module.base.utils import random_normal_distribution_int
-from module.campaign.sortie_status import (DIC_LIMIT, DIC_RECOVER_MAX, emotion_current, emotion_slots,
-                                           emotion_speed, latest_emotion, status_battle, status_update)
+from module.campaign.sortie_status import (DIC_LIMIT, DIC_RECOVER_MAX, EMOTION_NOT_SHARED, emotion_current,
+                                           emotion_slots, emotion_speed, latest_emotion, status_battle,
+                                           status_update)
 from module.config.config import AzurLaneConfig
 from module.exception import ScriptEnd, ScriptError, RequestHumanTakeover
 from module.logger import logger
@@ -42,14 +43,24 @@ class FleetEmotion:
         Returns:
             list[tuple[str, int]]: (task, fleet slot) of other tasks using the same game fleet.
         """
+        data, task = self._shared_data()
+        if data is None:
+            return []
+        return emotion_slots(data, self.number, exclude_task=task)
+
+    def _shared_data(self):
+        """
+        Returns:
+            tuple[dict, str]: Config data and current task, (None, None) if emotion is not shared.
+        """
         try:
             data = self.config.data
             task = self.config.task.command
         except AttributeError:
-            return []
-        if not isinstance(data, dict):
-            return []
-        return emotion_slots(data, self.number, exclude_task=task)
+            return None, None
+        if not isinstance(data, dict) or task in EMOTION_NOT_SHARED:
+            return None, None
+        return data, task
 
     def _latest(self):
         """
@@ -61,8 +72,9 @@ class FleetEmotion:
         """
         value = getattr(self.config, f'Emotion_Fleet{self.fleet}Value')
         record = getattr(self.config, f'Emotion_Fleet{self.fleet}Record')
-        if self.shared_slots():
-            other = latest_emotion(self.config.data, self.number, exclude_task=self.config.task.command)
+        data, task = self._shared_data()
+        if data is not None:
+            other = latest_emotion(data, self.number, exclude_task=task)
             if other is not None and other[1] > record:
                 return other
         return value, record
@@ -140,7 +152,8 @@ class FleetEmotion:
         return DIC_RECOVER_MAX[self.recover]
 
     def update(self):
-        self.current = emotion_current(self.value, self.record, self.speed, self.max)
+        value, record = self._latest()
+        self.current = emotion_current(value, record, self.speed, self.max)
 
     def get_recovered(self, expected_reduce=0):
         """

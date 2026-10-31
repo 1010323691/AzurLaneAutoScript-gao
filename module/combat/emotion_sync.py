@@ -111,11 +111,13 @@ class EmotionSync(UI):
             if timeout.reached():
                 logger.warning('Failed to close dorm training popup')
                 break
+            # End, DORM_TRAINING_ENTER is still visible below the popup
+            if self.appear(DORM_TRAINING_ENTER, offset=(20, 20)) \
+                    and not self.appear(DORM_TRAINING_CLOSE, offset=(20, 20)):
+                break
+
             if self.appear_then_click(DORM_TRAINING_CLOSE, offset=(20, 20), interval=2):
                 continue
-            # End, DORM_TRAINING_ENTER is still visible below the popup
-            if self.appear(DORM_TRAINING_ENTER, offset=(20, 20)):
-                break
 
     def _tab_read(self, tab, skip_first_screenshot=True):
         """
@@ -126,9 +128,9 @@ class EmotionSync(UI):
             list[tuple[int, int]]: (condition, recover speed per hour) of ships in this tab.
         """
         timeout = Timer(10, count=20).start()
-        # Cards have an animation after popup shown or tab switched, OCR during it drops digits,
-        # e.g. `40/h` read as `4/`, although results of continuous screenshots are the same.
+        # Cards have an entry animation after popup shown or tab switched, wait before reading
         settle = Timer(1, count=2).start()
+        click_timer = Timer(2)
         prev = None
         for _ in self.loop(skip_first=skip_first_screenshot):
             if timeout.reached():
@@ -136,10 +138,12 @@ class EmotionSync(UI):
                 return []
             # Tab is selected if its template matches, unselected tabs have inverted colors
             if not self.appear(tab, offset=(10, 10)):
-                self.device.click(tab)
+                # Click interval, avoid GameTooManyClickError if tab never matches
+                if not click_timer.started() or click_timer.reached():
+                    self.device.click(tab)
+                    click_timer.reset()
                 prev = None
                 settle.reset()
-                self.device.sleep(0.5)
                 continue
             if not settle.reached():
                 continue

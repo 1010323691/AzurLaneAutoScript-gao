@@ -127,6 +127,17 @@ class TestSharedEmotion(ConfigTestBase):
         # Main3 uses another game fleet
         self.assertEqual(Emotion(self.config('Main3')).fleet_1.value, 119)
 
+    def test_gems_farming_not_shared(self):
+        config = self.config('Event')
+        emotion = Emotion(config)
+        emotion.update()
+        emotion.fleet_1.current = 60
+        emotion.record()
+        # GemsFarming doesn't read emotion of other tasks, and isn't written by them
+        self.assertEqual(Emotion(self.config('GemsFarming')).fleet_1.value,
+                         read_file(self.path)['GemsFarming']['Emotion']['Fleet1Value'])
+        self.assertNotEqual(read_file(self.path)['GemsFarming']['Emotion']['Fleet1Value'], 60)
+
     def test_own_override(self):
         # Overridden value of current task is used when it's the latest
         config = self.config('Main')

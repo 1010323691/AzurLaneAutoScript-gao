@@ -136,6 +136,15 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(row['until'], datetime(2026, 10, 31, 18, 30))
         self.assertTrue(row['fleets'][0]['fighting'])
 
+    def test_emotion_waited(self):
+        # Emotion waited in map, going to battle, progress is kept
+        status = {'Main': {'state': 'emotion_wait', 'fleet': 2, 'until': '2026-10-31 17:50:00',
+                           'battle': 3, 'battle_total': 5}}
+        row = build_rows({'Main': task_data()}, status, running_task='Main', now=NOW)[0]
+        self.assertEqual(row['state'], 'battle')
+        self.assertEqual((row['battle'], row['battle_total']), (3, 5))
+        self.assertTrue(row['fleets'][1]['fighting'])
+
     def test_emotion_delay(self):
         # Real case: Main delayed for emotion, shown in waiting tasks
         status = {'Main': {'state': 'emotion_delay', 'until': '2026-10-31 18:48:00', 'order': 'fleet1_boss_fleet2_mob'}}
@@ -193,8 +202,11 @@ class TestBuildRows(unittest.TestCase):
         self.assertIsNone(groups[1]['synced'])
 
     def test_latest_emotion(self):
-        data = {'Main': task_data(value1=52), 'Event': task_data(value1=99), 'Hard': {'Fleet': {'Fleet1': 1}}}
+        data = {'Main': task_data(value1=52), 'Event': task_data(value1=99), 'Hard': {'Fleet': {'Fleet1': 1}},
+                'GemsFarming': task_data(value1=150)}
         data['Event']['Emotion']['Fleet1Record'] = '2026-10-31 18:30:00'
+        data['GemsFarming']['Emotion']['Fleet1Record'] = '2026-10-31 18:40:00'
+        # GemsFarming changes ships in its fleet, not shared
         self.assertEqual(emotion_slots(data, 1), [('Main', 1), ('Event', 1)])
         self.assertEqual(emotion_slots(data, 1, exclude_task='Main'), [('Event', 1)])
         self.assertEqual(emotion_slots(data, 0), [])

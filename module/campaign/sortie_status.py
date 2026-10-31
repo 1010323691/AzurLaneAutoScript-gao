@@ -12,6 +12,7 @@ This module is imported by GUI process, don't import modules using PIL or cv2.
 import json
 import os
 import re
+import time
 from datetime import datetime
 
 from module.logger import logger
@@ -42,6 +43,8 @@ FLEET_ORDER_ROLE = {
 }
 AUTO_SWAP_SUFFIX = '_auto_swap'
 STATUS_FOLDER = './log/status'
+# Tasks that don't share emotion with other tasks using the same game fleet
+EMOTION_NOT_SHARED = ['GemsFarming']
 # Status key of the last dorm emotion sync
 EMOTION_SYNC_KEY = '_EmotionSync'
 
@@ -119,6 +122,9 @@ def emotion_slots(config_data, number, exclude_task=None):
     for task, data in config_data.items():
         if task == exclude_task or not isinstance(data, dict):
             continue
+        # GemsFarming changes ships in its fleet and records emotion of the new ships
+        if task in EMOTION_NOT_SHARED:
+            continue
         if not isinstance(data.get('Emotion'), dict) or not isinstance(data.get('Fleet'), dict):
             continue
         for slot in [1, 2]:
@@ -190,7 +196,15 @@ def status_update(config, reset=False, key=None, **kwargs):
         tmp = f'{file}.tmp'
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmp, file)
+        # On Windows, replace fails if GUI process is reading the file
+        for retry in range(3):
+            try:
+                os.replace(tmp, file)
+                break
+            except PermissionError:
+                if retry >= 2:
+                    raise
+                time.sleep(0.1)
     except Exception as e:
         logger.warning(f'Failed to update campaign status: {e}')
 
@@ -273,12 +287,13 @@ def _task_state(status, is_running, next_run, now):
     if is_running:
         if state == 'emotion_wait' and until is not None and until > now:
             return {'state': 'emotion_wait', 'until': until, 'fleet': status.get('fleet')}
-        if state in ['map', 'battle']:
+        # Emotion waited, going to battle
+        if state in ['map', 'battle', 'emotion_wait']:
             return {
                 'state': 'battle',
                 'battle': status.get('battle', 0),
                 'battle_total': status.get('battle_total', 0),
-                'fleet': status.get('fleet') if state == 'battle' else None,
+                'fleet': status.get('fleet') if state != 'map' else None,
             }
         return {'state': 'running'}
     # Task delay of this reason is the NextRun, unless NextRun was changed later, e.g. by user
