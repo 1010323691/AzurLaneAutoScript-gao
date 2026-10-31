@@ -6,6 +6,7 @@ import random
 import module.config.server as server
 from module.campaign.campaign_base import CampaignBase
 from module.campaign.campaign_event import CampaignEvent
+from module.campaign.sortie_status import emotion_synced_recently, status_read
 from module.campaign.campaign_ui import MODE_SWITCH_1
 from module.config.config import AzurLaneConfig
 from module.exception import CampaignEnd, RequestHumanTakeover, ScriptEnd
@@ -13,6 +14,9 @@ from module.handler.fast_forward import map_files, to_map_file_name
 from module.logger import logger
 from module.notify import handle_notify
 from module.ui.page import page_campaign
+
+# Minutes, skip emotion sync before sortie if synced recently
+EMOTION_SYNC_INTERVAL = 10
 
 
 class CampaignRun(CampaignEvent):
@@ -431,6 +435,11 @@ class CampaignRun(CampaignEvent):
             out: page_dorm, if synced
         """
         if not self.emotion_sync_available():
+            return False
+        # Main and Event use the same fleets, don't sync again when they run one after another
+        numbers = [n for n in [self.config.Fleet_Fleet1, self.config.Fleet_Fleet2] if n]
+        if emotion_synced_recently(status_read(self.config.config_name), numbers, EMOTION_SYNC_INTERVAL):
+            logger.info(f'Emotion synced within {EMOTION_SYNC_INTERVAL} minutes, skip emotion sync before sortie')
             return False
         self.device.screenshot()
         self.campaign.device.image = self.device.image

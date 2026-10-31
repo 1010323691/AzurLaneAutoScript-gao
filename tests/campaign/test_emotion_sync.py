@@ -192,8 +192,12 @@ class FakeTask:
 
 
 class FakeRunConfig:
+    Fleet_Fleet1 = 1
+    Fleet_Fleet2 = 2
+
     def __init__(self, command='Main'):
         self.task = FakeTask(command)
+        self.config_name = 'zz_test_emotion_sync_run'
         self.delays = []
 
     def task_delay(self, **kwargs):
@@ -237,6 +241,22 @@ class TestEmotionSyncRetry(unittest.TestCase):
             self.assertFalse(run.emotion_sync_retry(ScriptEnd('Emotion control')))
             self.assertEqual(sync.call_count, 1)
         self.assertEqual(run.config.delays, [])
+
+    @patch.object(EmotionSync, '__init__', lambda self, config, device: None)
+    def test_start_synced_recently(self):
+        # Main synced, then Event starts with the same fleets
+        now = datetime.now().replace(microsecond=0)
+        with patch.object(EmotionSync, 'emotion_sync', return_value=True) as sync_call:
+            for time, fleets, called in [
+                (now - timedelta(minutes=3), ['1', '2'], 0),
+                (now - timedelta(minutes=30), ['1', '2'], 1),
+                # Other fleets synced
+                (now - timedelta(minutes=3), ['1', '3'], 2),
+            ]:
+                sync = {'time': str(time), 'fleets': {f: {} for f in fleets}}
+                with patch('module.campaign.run.status_read', return_value={sortie_status.EMOTION_SYNC_KEY: sync}):
+                    self.run_of('Event').emotion_sync_start()
+                self.assertEqual(sync_call.call_count, called)
 
     @patch.object(EmotionSync, '__init__', lambda self, config, device: None)
     def test_start_in_map(self):
