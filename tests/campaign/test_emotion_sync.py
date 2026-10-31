@@ -164,8 +164,26 @@ class FakeEmotion:
     is_calculate = True
 
 
+class FakeDevice:
+    image = None
+
+    def screenshot(self):
+        self.image = 'image'
+        return self.image
+
+
 class FakeCampaign:
     emotion = FakeEmotion()
+
+    def __init__(self, in_map=False):
+        self.device = FakeDevice()
+        self.in_map = in_map
+
+    def is_in_map(self):
+        return self.in_map
+
+    def is_in_auto_search_menu(self):
+        return False
 
 
 class FakeTask:
@@ -184,11 +202,11 @@ class FakeRunConfig:
 
 @patch('module.config.server.server', 'jp')
 class TestEmotionSyncRetry(unittest.TestCase):
-    def run_of(self, command='Main'):
+    def run_of(self, command='Main', in_map=False):
         run = CampaignRun.__new__(CampaignRun)
         run.config = FakeRunConfig(command)
-        run.device = None
-        run.campaign = FakeCampaign()
+        run.device = FakeDevice()
+        run.campaign = FakeCampaign(in_map=in_map)
         run.emotion_synced = False
         return run
 
@@ -210,12 +228,39 @@ class TestEmotionSyncRetry(unittest.TestCase):
             self.assertFalse(run.emotion_sync_retry(ScriptEnd('Emotion control')))
         self.assertEqual(run.config.delays, [])
 
+    @patch.object(EmotionSync, '__init__', lambda self, config, device: None)
+    def test_sync_at_start(self):
+        run = self.run_of()
+        with patch.object(EmotionSync, 'emotion_sync', return_value=True) as sync:
+            self.assertTrue(run.emotion_sync_start())
+            # Already synced in this task, delayed with real emotion directly
+            self.assertFalse(run.emotion_sync_retry(ScriptEnd('Emotion control')))
+            self.assertEqual(sync.call_count, 1)
+        self.assertEqual(run.config.delays, [])
+
+    @patch.object(EmotionSync, '__init__', lambda self, config, device: None)
+    def test_start_in_map(self):
+        # Task restarted in map, can't go to dorm before retreating
+        run = self.run_of(in_map=True)
+        with patch.object(EmotionSync, 'emotion_sync', return_value=True) as sync:
+            self.assertFalse(run.emotion_sync_start())
+            sync.assert_not_called()
+            # Synced when emotion is not enough
+            self.assertTrue(run.emotion_sync_retry(ScriptEnd('Emotion control')))
+            self.assertEqual(sync.call_count, 1)
+
     def test_not_synced(self):
         with patch.object(EmotionSync, 'emotion_sync') as sync:
             self.assertFalse(self.run_of().emotion_sync_retry(ScriptEnd('Reach condition')))
             self.assertFalse(self.run_of('GemsFarming').emotion_sync_retry(ScriptEnd('Emotion control')))
             with patch('module.config.server.server', 'cn'):
                 self.assertFalse(self.run_of().emotion_sync_retry(ScriptEnd('Emotion control')))
+                self.assertFalse(self.run_of().emotion_sync_start())
+            self.assertFalse(self.run_of('GemsFarming').emotion_sync_start())
+            # Other campaign tasks may use other fleets
+            self.assertFalse(self.run_of('Main3').emotion_sync_start())
+            self.assertFalse(self.run_of('EventA').emotion_sync_start())
+            self.assertTrue(self.run_of('Event').emotion_sync_available())
             sync.assert_not_called()
 
 
