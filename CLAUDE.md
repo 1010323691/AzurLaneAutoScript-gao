@@ -18,6 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **fork 新增功能**（上游没有；同步上游时要注意冲突）：
   1. **卡死处理** `Restart.StuckHandle`（重启设置页）。`Mode: restart | skip_task`，`SkipDelay: 1h | 3h | 6h | server_update`。
      - 实现：`alas.py` 的 `run()` / `stuck_skip_task()` / `stuck_skip_cleanup()`，异常类型 `module/exception.py` 的 `TaskRequirementNotMet`。
+     - `skip_task` 遇到卡死（`GameStuckError` / `GameTooManyClickError`）时先重试：不推迟，回主界面（回不去就 `task_call('Restart')`），任务 `NextRun` 不变，重启后接着跑。同一任务连续卡死超过 `STUCK_RETRY_LIMIT`（2）次才按 `SkipDelay` 推迟。计数在 `stuck_retry_record`，按 command 记，任务正常结束（返回或 `TaskEnd`）时清零，不计入上游「连续失败 3 次退出」的 `failure_record`。`TaskRequirementNotMet` 不重试，直接推迟到服务器刷新。原因：推图卡死多是误识别，第一次就推迟到次日等于停掉一整天。
   2. **舰队职能新增选项** `Fleet.FleetOrder = fleet1_mob_fleet2_boss_auto_swap`：每次出击前，按心情自动互换道中队和 Boss 队。
      - 伪值在 `AzurLaneConfig.bind()` 里解析为具体职能，同时设置 `config.FLEET_ORDER_AUTO_SWAP=True`。
      - 互换逻辑在 `module/combat/emotion.py` 的 `Emotion.check_reduce()`。
