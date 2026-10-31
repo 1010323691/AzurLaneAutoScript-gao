@@ -449,7 +449,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
-            self.battle_status_grade = 'S'
+            # Keep the first grade, later frames may misread, like BATTLE_STATUS_B after S
+            self.battle_status_grade = self.battle_status_grade or 'S'
             self.device.click(BATTLE_STATUS_S)
             return True
         if self.appear(BATTLE_STATUS_A, interval=self.battle_status_click_interval):
@@ -459,7 +460,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
-            self.battle_status_grade = 'A'
+            self.battle_status_grade = self.battle_status_grade or 'A'
             self.device.click(BATTLE_STATUS_A)
             return True
         if self.appear(BATTLE_STATUS_B, interval=self.battle_status_click_interval):
@@ -469,7 +470,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
-            self.battle_status_grade = 'B'
+            self.battle_status_grade = self.battle_status_grade or 'B'
             self.device.click(BATTLE_STATUS_B)
             return True
         # BATTLE_STATUS_C and BATTLE_STATUS_D are color checks of a grey strip,

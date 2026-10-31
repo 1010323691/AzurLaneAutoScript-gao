@@ -277,6 +277,14 @@ class TestExpInfoGrade(unittest.TestCase):
         self.assertTrue(self.exp_info(combat, 'EXP_INFO_S'))
         self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S', 'EXP_INFO_S'])
 
+    def test_later_battle_status_misread_ignored(self):
+        # Real case: JP, BATTLE_STATUS_S, BATTLE_STATUS_S, BATTLE_STATUS_B, then EXP_INFO_S
+        combat = FakeBattleStatus()
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        self.assertTrue(combat.battle('BATTLE_STATUS_B'))
+        self.assertEqual(combat.battle_status_grade, 'S')
+        self.assertTrue(self.exp_info(combat, 'EXP_INFO_S'))
+
     def test_grade_a_and_b(self):
         for grade in ['A', 'B']:
             combat = FakeBattleStatus()
