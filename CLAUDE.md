@@ -43,7 +43,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 现在 `CampaignRun.fleet_boss_follow_gui()` 在合并地图 `Config` 后，若地图在 `campaign_main`、地图 `Config` 写的是 `FLEET_BOSS = 1`、GUI 配了第 2 舰队且职能是道中/Boss 分工，就把 `FLEET_BOSS` 置 0，回到按职能推算。`FLEET_BOSS` 是职能编号（2 表示有单独的 Boss 队），两种分工顺序都是 2，槽位反转由 `fleets_reversed` 处理。
      - 活动图不改：2020 年几张活动图同时写了 `SUBMARINE = 0` 和 `FLEET_BOSS = 1`，`event_20240521_cn` 的 a1、c1 还在运行时设 `self.config.FLEET_BOSS = 1`（只能用 1 队）。上游写死的原因不明，2～6 章 Boss 队走到 Boss 只在单元测试层面验证过。
   11. **潜艇正下方的格子到达确认不再死循环**：`Fleet._goto()` 发现目标格正上方是潜艇（`may_submarine_icon`）时，不用 `predict_fleet()`，改用 `predict_current_fleet()` 找格子上方 2.5～3.5 格的绿色当前舰队箭头。地图已滚到最上面、目标格在靠上的行时（例：4-4 镜头 G3、目标 D3、潜艇 D2），箭头落在顶部状态栏后面，每 20 秒 `Walk timeout` 重试，永远确认不了。
-     - 现在走路超时、`may_submarine_icon` 且目标格认得出舰队（`predict_fleet()`）时，调 `Fleet.fleet_focus_by_switch()`：切到另一队再切回来，游戏会把镜头移到当前舰队身上，然后 `self.camera = location` 并 `update()`，下一轮箭头在画面中央附近，正常确认到达。只有一支舰队或切换失败时退回原来的重试。办法来自用户实测。
+     - 现在走路超时且 `may_submarine_icon` 时，调 `Fleet.fleet_focus_by_switch()`：切到另一队再切回来，游戏会把镜头移到当前舰队身上，下一轮箭头在画面中央附近，正常确认到达。办法来自用户实测。
+     - 镜头移动按一次地图滑动处理：切换前的画面存进 `_prev_view`，假定位移是 `location - camera`，`update()` 时由滑动预测（`predict_swipe`）按画面实际位移校正，所以舰队其实没走到目标格时也不会把镜头错记在目标格、误判到达。不用 `predict_fleet()` 当门槛：上方的潜艇图标会干扰它。
+     - 只有一支舰队或第一次切换失败时退回原来的重试；切回失败会再试一次，仍失败就警告并退回原重试，不动镜头。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---

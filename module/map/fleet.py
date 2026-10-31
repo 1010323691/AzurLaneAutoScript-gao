@@ -1,3 +1,4 @@
+import copy
 import itertools
 
 import numpy as np
@@ -115,20 +116,33 @@ class Fleet(Camera, AmbushHandler):
         which is under the top UI if location is at top of the screen and the map can't swipe further.
         Then walk retries forever although the fleet already arrived.
 
+        Camera movement is handled like a map swipe, assuming the fleet is at location,
+        and corrected by swipe prediction if the fleet is somewhere else.
+
         Args:
-            location (tuple): Where the current fleet is.
+            location (tuple): Where the current fleet should be.
 
         Returns:
-            bool: If switched.
+            bool: If switched and back on the current fleet.
         """
         if not self.config.FLEET_2:
             return False
         index = self.fleet_current_index
         logger.info(f'Current fleet arrow may be hidden, switch fleets to focus on {location2node(location)}')
-        self.fleet_set(index=3 - index)
-        if not self.fleet_set(index=index):
+        prev_view = copy.copy(self.view)
+        if not self.fleet_set(index=3 - index):
             return False
-        self.camera = location
+        self.fleet_set(index=index)
+        if self.fleet_current_index != index:
+            # Don't walk with the other fleet
+            self.fleet_set(index=index)
+            if self.fleet_current_index != index:
+                logger.warning(f'Failed to switch back to fleet {index}')
+                return False
+        swipe = tuple(np.subtract(location, self.camera).tolist())
+        if swipe != (0, 0):
+            self._prev_view = prev_view
+            self._prev_swipe = swipe
         self.update()
         return True
 
@@ -457,7 +471,7 @@ class Fleet(Camera, AmbushHandler):
                     break
                 if walk_timeout.reached():
                     logger.warning('Walk timeout. Retrying.')
-                    if may_submarine_icon and grid.predict_fleet() and self.fleet_focus_by_switch(location):
+                    if may_submarine_icon and self.fleet_focus_by_switch(location):
                         break
                     self.predict()
                     self.ensure_edge_insight(skip_first_update=False)
