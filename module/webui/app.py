@@ -1,5 +1,7 @@
 import argparse
+import html
 import json
+import os
 import queue
 import threading
 import time
@@ -40,6 +42,7 @@ from pywebio.pin import pin, pin_on_change
 from pywebio.session import download, go_app, info, local, register_thread, run_js, set_env
 
 import module.webui.lang as lang
+from module.campaign.sortie_status import build_groups, format_time, status_file, status_read
 from module.config.config import AzurLaneConfig, Function
 from module.config.deep import deep_get, deep_iter, deep_set
 from module.config.env import IS_ON_PHONE_CLOUD
@@ -465,6 +468,14 @@ class AlasGUI(Frame):
 
         with use_scope("logs"):
             put_scope(
+                "sortie",
+                [
+                    put_text(t("Gui.Overview.CampaignStatus")),
+                    put_html('<hr class="hr-group">'),
+                    put_scope("sortie_status"),
+                ],
+            )
+            put_scope(
                 "log-bar",
                 [
                     put_text(t("Gui.Overview.Log")).style(
@@ -496,6 +507,7 @@ class AlasGUI(Frame):
         self.task_handler.add(switch_scheduler.g(), 1, True)
         self.task_handler.add(switch_log_scroll.g(), 1, True)
         self.task_handler.add(self.alas_update_overview_task, 10, True)
+        self.task_handler.add(self.alas_update_sortie_status_task, 2, True)
         self.task_handler.add(log.put_log(self.alas), 0.25, True)
 
     def _init_alas_config_watcher(self) -> None:
@@ -636,6 +648,124 @@ class AlasGUI(Frame):
                     put_task(task)
             else:
                 put_text(t("Gui.Overview.NoTask")).style("--overview-notask-text--")
+
+        self.sortie_running = running[0].command if running else None
+        self.alas_update_sortie_status()
+
+    def alas_update_sortie_status_task(self) -> None:
+        """
+        Render sortie status again once Alas process updated status file,
+        alas_update_overview_task() renders it every 10s anyway.
+        """
+        if not self.visible:
+            return
+        try:
+            mtime = os.path.getmtime(status_file(self.alas_name))
+        except OSError:
+            return
+        if mtime != getattr(self, "sortie_status_mtime", None):
+            # Emotion is saved in config before status file
+            self.alas_config.load()
+            self.alas_update_sortie_status()
+
+    def alas_update_sortie_status(self) -> None:
+        try:
+            self.sortie_status_mtime = os.path.getmtime(status_file(self.alas_name))
+        except OSError:
+            self.sortie_status_mtime = None
+        now = datetime.now()
+        # Sortie status is only for display, don't break the overview task
+        try:
+            groups = build_groups(
+                self.alas_config.data,
+                status_read(self.alas_name),
+                running_task=getattr(self, "sortie_running", None),
+                now=now,
+            )
+            content = "".join(self._sortie_group_html(group, now) for group in groups)
+        except Exception as e:
+            logger.exception(e)
+            return
+        clear("sortie_status")
+        with use_scope("sortie_status"):
+            if groups:
+                put_html(content)
+            else:
+                put_text(t("Gui.Overview.CampaignNone")).style("--overview-notask-text--")
+
+    @staticmethod
+    def _sortie_task_html(row, now) -> str:
+        e = html.escape
+        state = row["state"]
+        time_str = format_time(row.get("until"), now=now)
+        if state == "battle":
+            state_text = t(
+                "Gui.Overview.StateBattle",
+                battle=row["battle"],
+                total=row["battle_total"] or "?",
+            )
+        elif state == "emotion_wait":
+            state_text = t("Gui.Overview.StateEmotionWait", fleet=row["fleet"], time=time_str)
+        elif state == "emotion_delay":
+            state_text = t("Gui.Overview.StateEmotionDelay", time=time_str)
+        elif state == "defeat":
+            state_text = t("Gui.Overview.StateDefeat", time=time_str)
+        elif state == "running":
+            state_text = t("Gui.Overview.StateRunning")
+        elif state == "pending":
+            state_text = t("Gui.Overview.StatePending")
+        else:
+            state_text = t("Gui.Overview.StateWaiting", time=time_str)
+
+        task_name = t(f"Task.{row['task']}.name")
+        title = f'{task_name} {row["stage"]}'
+        if row["auto_swap"]:
+            title += f' · {t("Gui.Overview.AutoSwap")}'
+        running = " sortie-head-running" if row["running"] else ""
+        return (
+            f'<div class="sortie-head sortie-{e(state)}{running}">'
+            f'<span class="sortie-title">{e(title)}</span>'
+            f'<span class="sortie-state">{e(state_text)}</span></div>'
+        )
+
+    @staticmethod
+    def _sortie_fleet_html(fleet, calculate) -> str:
+        e = html.escape
+        name = t("Gui.Overview.Fleet", number=fleet["number"])
+        role = t(f'Gui.Overview.Role{fleet["role"].capitalize()}')
+        if fleet["fighting"]:
+            role += f' · {t("Gui.Overview.Fighting")}'
+        value = fleet["value"]
+        if not calculate or value is None:
+            bar = f'<span class="sortie-novalue">{e(t("Gui.Overview.NoEmotion"))}</span>'
+        else:
+            width = min(round(100 * value / fleet["max"]), 100)
+            limit = round(100 * fleet["limit"] / fleet["max"])
+            level = "low" if value < fleet["limit"] else "ok"
+            speed = t("Gui.Overview.RecoverSpeed", speed=fleet["speed"])
+            bar = (
+                f'<span class="sortie-bar"><span class="sortie-fill sortie-{level}" style="width:{width}%"></span>'
+                f'<span class="sortie-limit" style="left:{limit}%"></span></span>'
+                f'<span class="sortie-value">{value}/{fleet["max"]}</span>'
+                f'<span class="sortie-speed">{e(speed)}</span>'
+            )
+        fighting = " sortie-fighting" if fleet["fighting"] else ""
+        return (
+            f'<div class="sortie-fleet{fighting}">'
+            f'<span class="sortie-name">{e(name)}</span>'
+            f'<span class="sortie-role">{e(role)}</span>{bar}</div>'
+        )
+
+    def _sortie_group_html(self, group, now) -> str:
+        e = html.escape
+        lines = [self._sortie_task_html(row, now) for row in group["tasks"]]
+        calculate = any(row["calculate"] for row in group["tasks"])
+        lines += [self._sortie_fleet_html(fleet, calculate) for fleet in group["fleets"]]
+        if group["synced"] is not None:
+            text = t("Gui.Overview.Synced", time=format_time(group["synced"], now=now))
+            lines.append(f'<div class="sortie-note">{e(text)}</div>')
+        running = " sortie-running" if any(row["running"] for row in group["tasks"]) else ""
+        return f'<div class="sortie-row{running}">{"".join(lines)}</div>'
 
     @use_scope("content", clear=True)
     def alas_daemon_overview(self, task: str) -> None:

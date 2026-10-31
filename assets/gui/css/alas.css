@@ -387,6 +387,7 @@ pre.rich-traceback-code {
 #pywebio-scope-running,
 #pywebio-scope-pending,
 #pywebio-scope-waiting,
+#pywebio-scope-sortie,
 #pywebio-scope-scheduler-bar,
 #pywebio-scope-log-bar,
 #pywebio-scope-log,
@@ -444,8 +445,136 @@ pre.rich-traceback-code {
 
     height: 100%;
     overflow-y: auto;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto auto 1fr;
 
+}
+
+#pywebio-scope-sortie > p {
+    font-size: 1.25rem;
+    font-weight: 500;
+    margin: 0 0.625rem 0 !important;
+}
+
+#pywebio-scope-sortie_status {
+    max-height: 14rem;
+    overflow-y: auto;
+}
+
+.sortie-row {
+    margin: .125rem .375rem .375rem;
+    padding: .125rem .375rem;
+    border-left: 3px solid transparent;
+}
+
+.sortie-row.sortie-running {
+    border-left-color: #3f88c5;
+    background-color: rgba(63, 136, 197, .08);
+}
+
+.sortie-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0 .5rem;
+}
+
+.sortie-title {
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+.sortie-state {
+    font-size: .875rem;
+}
+
+.sortie-head.sortie-emotion_wait .sortie-state,
+.sortie-head.sortie-emotion_delay .sortie-state {
+    color: #d29922;
+}
+
+.sortie-head.sortie-defeat .sortie-state {
+    color: #e5534b;
+}
+
+/* Fixed columns, so bars stay aligned when role text changes, e.g. Mob -> Mob · Fighting */
+.sortie-fleet {
+    display: grid;
+    /* Track sizes do not depend on content, columns are the same in every row */
+    grid-template-columns: minmax(3.5rem, 4.5rem) minmax(4.5rem, 7.5rem) minmax(2rem, 10rem) 4.5rem 3.5rem;
+    align-items: center;
+    gap: 0 .5rem;
+    font-size: .875rem;
+    margin-left: .75rem;
+}
+
+.sortie-name,
+.sortie-role {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sortie-novalue {
+    grid-column: 3 / span 3;
+}
+
+.sortie-fighting .sortie-name,
+.sortie-fighting .sortie-role {
+    font-weight: 600;
+    color: #3f88c5;
+}
+
+.sortie-bar {
+    position: relative;
+    display: block;
+    height: .5rem;
+    border-radius: .25rem;
+    background-color: rgba(127, 127, 127, .25);
+}
+
+.sortie-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    height: 100%;
+    border-radius: .25rem;
+}
+
+.sortie-fill.sortie-ok {
+    background-color: #4caf50;
+}
+
+.sortie-fill.sortie-low {
+    background-color: #e5534b;
+}
+
+.sortie-limit {
+    position: absolute;
+    top: -.125rem;
+    width: 2px;
+    height: .75rem;
+    background-color: rgba(127, 127, 127, .9);
+}
+
+.sortie-value {
+    text-align: right;
+    font-family: Menlo, consolas, DejaVu Sans Mono, Courier New, monospace;
+    font-size: .8rem;
+}
+
+.sortie-speed {
+    font-size: .75rem;
+    color: #4caf50;
+}
+
+.sortie-head-running .sortie-title {
+    color: #3f88c5;
+}
+
+.sortie-note {
+    font-size: .75rem;
+    color: darkgrey;
+    margin-left: .75rem;
 }
 
 [id^="pywebio-scope-overview-task_"] {

@@ -5,27 +5,13 @@ import numpy as np
 
 from module.base.decorator import cached_property
 from module.base.utils import random_normal_distribution_int
+from module.campaign.sortie_status import (DIC_LIMIT, DIC_RECOVER_MAX, EMOTION_NOT_SHARED, emotion_current,
+                                           emotion_slots, emotion_speed, latest_emotion, status_battle,
+                                           status_update)
 from module.config.config import AzurLaneConfig
 from module.exception import ScriptEnd, ScriptError, RequestHumanTakeover
 from module.logger import logger
 
-DIC_LIMIT = {
-    'keep_exp_bonus': 120,
-    'prevent_green_face': 40,
-    'prevent_yellow_face': 30,
-    'prevent_red_face': 2,
-}
-DIC_RECOVER = {
-    'not_in_dormitory': 20,
-    'dormitory_floor_1': 40,
-    'dormitory_floor_2': 50,
-}
-DIC_RECOVER_MAX = {
-    'not_in_dormitory': 119,
-    'dormitory_floor_1': 150,
-    'dormitory_floor_2': 150,
-}
-OATH_RECOVER = 10
 # Swap mob fleet and boss fleet, used when Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap
 FLEET_ORDER_SWAP = {
     'fleet1_mob_fleet2_boss': 'fleet1_boss_fleet2_mob',
@@ -45,12 +31,61 @@ class FleetEmotion:
         self.current = 0
 
     @property
+    def number(self):
+        """
+        Returns:
+            int: Game fleet number of this fleet slot, 0 if unknown.
+        """
+        return getattr(self.config, f'Fleet_Fleet{self.fleet}', 0)
+
+    def shared_slots(self):
+        """
+        Returns:
+            list[tuple[str, int]]: (task, fleet slot) of other tasks using the same game fleet.
+        """
+        data, task = self._shared_data()
+        if data is None:
+            return []
+        return emotion_slots(data, self.number, exclude_task=task)
+
+    def _shared_data(self):
+        """
+        Returns:
+            tuple[dict, str]: Config data and current task, (None, None) if emotion is not shared.
+        """
+        try:
+            data = self.config.data
+            task = self.config.task.command
+        except AttributeError:
+            return None, None
+        if not isinstance(data, dict) or task in EMOTION_NOT_SHARED:
+            return None, None
+        return data, task
+
+    def _latest(self):
+        """
+        Emotion belongs to the game fleet. Tasks using the same game fleet, such as Main and Event,
+        share it, the latest record wins.
+
+        Returns:
+            tuple[int, datetime.datetime]:
+        """
+        value = getattr(self.config, f'Emotion_Fleet{self.fleet}Value')
+        record = getattr(self.config, f'Emotion_Fleet{self.fleet}Record')
+        data, task = self._shared_data()
+        if data is not None:
+            other = latest_emotion(data, self.number, exclude_task=task)
+            if other is not None and other[1] > record:
+                return other
+        return value, record
+
+    @property
     def value(self):
         """
         Returns:
             int: 0 to 150
         """
-        return getattr(self.config, f'Emotion_Fleet{self.fleet}Value')
+        return self._latest()[0]
 
     @property
     def value_name(self):
@@ -66,7 +101,7 @@ class FleetEmotion:
         Returns:
             datetime.datetime:
         """
-        return getattr(self.config, f'Emotion_Fleet{self.fleet}Record')
+        return self._latest()[1]
 
     @property
     def recover(self):
@@ -98,10 +133,7 @@ class FleetEmotion:
         Returns:
             int: Recover speed per 6 min.
         """
-        speed = DIC_RECOVER[self.recover]
-        if self.oath:
-            speed += OATH_RECOVER
-        return speed // 10
+        return emotion_speed(self.recover, self.oath)
 
     @property
     def limit(self):
@@ -120,9 +152,8 @@ class FleetEmotion:
         return DIC_RECOVER_MAX[self.recover]
 
     def update(self):
-        recover_count = int(int(datetime.now().timestamp()) // 360 - int(self.record.timestamp()) // 360)
-        recover_count = max(recover_count, 0)
-        self.current = min(max(self.value, 0) + self.speed * recover_count, self.max)
+        value, record = self._latest()
+        self.current = emotion_current(value, record, self.speed, self.max)
 
     def get_recovered(self, expected_reduce=0):
         """
@@ -188,6 +219,30 @@ class Emotion:
             value[fleet.value_name] = fleet.current
 
         self.config.set_record(**value)
+        self.record_shared()
+
+    def record_shared(self, **kwargs):
+        """
+        Save current emotion value to other tasks using the same game fleets.
+
+        Args:
+            **kwargs: Other emotion settings to save to all of them, such as Fleet1Recover=...,
+                keys are named by the fleet slot of current task.
+        """
+        modified = {}
+        record = datetime.now().replace(microsecond=0)
+        for fleet in self.fleets:
+            for task, slot in fleet.shared_slots():
+                modified[f'{task}.Emotion.Fleet{slot}Value'] = fleet.current
+                modified[f'{task}.Emotion.Fleet{slot}Record'] = record
+                for key, value in kwargs.items():
+                    if key.startswith(f'Fleet{fleet.fleet}'):
+                        modified[f'{task}.Emotion.Fleet{slot}{key[len("FleetN"):]}'] = value
+        if not modified:
+            return
+        with self.config.multi_set():
+            for keys, value in modified.items():
+                self.config.cross_set(keys=keys, value=value)
 
     def show(self):
         for fleet in self.fleets:
@@ -266,6 +321,7 @@ class Emotion:
         if recovered > datetime.now():
             logger.info('Delay current task to prevent emotion control in the future')
             self.config.task_delay(target=recovered)
+            status_update(self.config, state='emotion_delay', until=recovered)
             raise ScriptEnd('Emotion control')
 
     def check_swap(self, battle):
@@ -331,6 +387,7 @@ class Emotion:
         if recovered > datetime.now():
             logger.hr('Emotion wait')
             logger.info(f'Emotion of fleet {fleet_index} will recover to {fleet.limit} at {recovered}')
+            status_update(self.config, state='emotion_wait', fleet=fleet_index, until=recovered)
 
             while 1:
                 if datetime.now() > recovered:
@@ -356,6 +413,7 @@ class Emotion:
         self.total_reduced += self.reduce_per_battle
         self.record()
         self.show()
+        status_battle(self.config, fleet_index)
 
     @cached_property
     def bug_threshold(self):

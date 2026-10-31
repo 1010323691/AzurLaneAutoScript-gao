@@ -51,6 +51,25 @@ Overview:
   Pending:
   Waiting:
   NoTask:
+  CampaignStatus:
+  CampaignNone:
+  StateRunning:
+  StateBattle:
+  StateEmotionWait:
+  StateEmotionDelay:
+  StateDefeat:
+  StateWaiting:
+  StatePending:
+  Fleet:
+  Fighting:
+  RoleMob:
+  RoleBoss:
+  RoleAll:
+  RoleStandby:
+  AutoSwap:
+  RecoverSpeed:
+  Synced:
+  NoEmotion:
 
 AddAlas:
   PopupTitle:
