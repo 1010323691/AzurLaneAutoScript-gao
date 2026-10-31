@@ -635,6 +635,13 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             bool:
         """
         if self.appear_then_click(GET_SHIP, offset=(20, 20), interval=1):
+            # Ships drop from won battles only. Battle status may be skipped in auto search,
+            # and BATTLE_STATUS_C / EXP_INFO_D, which are color checks, may match GET_SHIP.
+            self.battle_status_won = True
+            if self.battle_status_defeated or self.combat_defeated:
+                logger.warning('GET_SHIP appeared, battle won, cancel combat defeated')
+                self.battle_status_defeated = False
+                self.combat_defeated = False
             if self.appear(NEW_SHIP):
                 logger.info('Get a new SHIP')
                 if drop:
