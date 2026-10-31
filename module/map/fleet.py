@@ -1150,6 +1150,9 @@ class Fleet(Camera, AmbushHandler):
         self.fleet_1_formation_fixed = False
         self.fleet_2_formation_fixed = False
 
+    # Retries of submarine move clicks before giving up, each retry takes about 2s
+    SUBMARINE_MOVE_RETRY = 3
+
     def _submarine_goto(self, location):
         """
         Move submarine to given location.
@@ -1159,6 +1162,8 @@ class Fleet(Camera, AmbushHandler):
 
         Returns:
             bool: If submarine moved.
+                False if submarine is already at location,
+                or game doesn't respond to clicks after SUBMARINE_MOVE_RETRY retries.
 
         Pages:
             in: SUBMARINE_MOVE_CONFIRM
@@ -1166,6 +1171,7 @@ class Fleet(Camera, AmbushHandler):
         """
         location = location_ensure(location)
         moved = True
+        retry = 0
         while 1:
             self.in_sight(location, sight=self._walk_sight)
             self.focus_to_grid_center()
@@ -1210,6 +1216,12 @@ class Fleet(Camera, AmbushHandler):
             # End
             if arrived:
                 break
+            retry += 1
+            if retry >= self.SUBMARINE_MOVE_RETRY:
+                # Clicks on the grid may have no response, e.g. 5-4 moving submarine from G3 to G2,
+                # submarine had 0 ammo and its model covered G2. Give up moving instead of GameTooManyClickError.
+                logger.warning(f'Submarine not moving to {location2node(location)}, give up')
+                return False
 
         return moved
 

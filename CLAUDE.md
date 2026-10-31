@@ -46,6 +46,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 现在走路超时且 `may_submarine_icon` 时，调 `Fleet.fleet_focus_by_switch()`：切到另一队再切回来，游戏会把镜头移到当前舰队身上，下一轮箭头在画面中央附近，正常确认到达。办法来自用户实测。
      - 镜头移动按一次地图滑动处理：切换前的画面存进 `_prev_view`，假定位移是 `location - camera`，`update()` 时由滑动预测（`predict_swipe`）按画面实际位移校正，所以舰队其实没走到目标格时也不会把镜头错记在目标格、误判到达。不用 `predict_fleet()` 当门槛：上方的潜艇图标会干扰它。
      - 只有一支舰队或第一次切换失败时退回原来的重试；切回失败会再试一次，仍失败就警告并退回原重试，不动镜头。
+  12. **潜艇移动点不动时放弃移动**：打 Boss 前 `submarine_move_near_boss()` 把潜艇移到 Boss 附近，`_submarine_goto()` 每 2 秒没到达就重点一次，上游没有次数上限，点到 `GameTooManyClickError`。日服 5-4 曾从 G3 移到 G2 连点 13 次无反应（当时潜艇弹药 0/7，G2 被潜艇自己的模型盖住；重进后同样的移动一次成功，确切原因未定）。
+     - 现在重点 `Fleet.SUBMARINE_MOVE_RETRY`（3）次仍没到达就返回 False，`submarine_goto()` 随之取消潜艇移动，照常去打 Boss，只是潜艇可能不在支援范围内。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -87,7 +89,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.ocr.test_numpy_ocr
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.ocr.test_numpy_ocr
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -354,6 +356,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | 自律寻敌时卡在红色 DEFEAT 提示页，任务被推迟到次日 | 战败提示页没被识别（fork 第 7 条已处理） | 错误现场截图；日志的 `Combat defeated, DEFEAT_TIPS` |
 | 推图打完一章就停了，任务显示完成 | Boss 战战败（日志有 `Battle Status D`、`Combat defeated`），任务被延迟。只配一支舰队或职能不是道中/Boss 分工时，2~6 章由道中队带伤打 Boss | 错误现场截图；`campaign/campaign_main/campaign_N_1.py` 的 `Config`；fork 第 7、10 条 |
 | 舰队已经停在目标格，日志反复 `Arrive XX (may_submarine_icon, is_current_fleet)` 和 `Walk timeout. Retrying.` | 目标格上方是潜艇，当前舰队箭头被顶部界面挡住（fork 第 11 条已处理） | 日志的 `Current fleet arrow may be hidden, switch fleets` |
+| 打 Boss 前 `Move submarine to XX` 后反复 `Walk timeout. Retrying.`，`Too many click for a button: XX` | 潜艇移动点击无反应（fork 第 12 条已处理） | 日志的 `Submarine not moving to XX, give up` |
 | 主线 2~6 章打 Boss 时没换到 Boss 队 | 地图脚本写死 `FLEET_BOSS = 1`（fork 第 10 条已处理；仍不换时看 GUI 是否配了第 2 舰队、职能是否为分工） | 日志的 `Map file sets FLEET_BOSS = 1, follow Fleet.FleetOrder` |
 | 出击任务被推迟到次日，错误现场是「コンディションが良くない」低心情确认框 | 推算心情比实际高（多个任务或手动游玩共用舰队）。fork 第 8 条后会撤退并推迟到心情恢复 | 日志的 `Low emotion popup, correct emotion`；各任务的 `Emotion.*` 与 `Fleet.Fleet1/2` |
 | 打 Boss 前有剧情，日志在 `STORY_SKIP` 之后紧跟 `POPUP_CANCEL_IGNORE_LOW_EMOTION`、`EMOTION WITHDRAW`，最后停在 S 结算页 `GameStuckError` | 剧情跳过确认框被误认成低心情弹窗（fork 第 8 条已处理） | `CampaignBase.handle_combat_low_emotion` 的 `_story_popup_expected` |
