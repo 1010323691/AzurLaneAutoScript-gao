@@ -54,7 +54,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 推迟原因只有在 NextRun 与记录的时间相差 1 分钟以内时才显示，被用户或别的逻辑改过 NextRun 就退回「下次出击」。
      - **心情按游戏舰队编号共用**：心情是游戏舰队的属性，所有带 `Emotion` 和 `Fleet` 分组的任务中，`Fleet.Fleet{1,2}` 编号相同的槽位共用一份心情。`FleetEmotion.value / record` 取这些槽位里 `Record` 最新的一份（`latest_emotion`）；`Emotion.record()` 通过 `record_shared()` 用 `cross_set` 同时写进其他任务。`Recover / Oath / Control` 仍是各任务自己的设置。GemsFarming 不参与共用（`EMOTION_NOT_SHARED`）：它会换船，并按新船写心情。
   14. **心情不够回港等待前，先去寮舍同步真实心情**（`module/combat/emotion_sync.py`）：
-     - 触发：`CampaignRun.run()` 捕获 `ScriptEnd('Emotion control')`（来源是进图前 `check_reduce` 或低心情弹窗撤退）后调用 `emotion_sync_retry()`。条件是本次任务还没同步过、日服、任务名以 `Main` 或 `Event` 开头（GemsFarming 用的不是寮舍里的舰队）、心情模式为计算。同步成功就 `task_delay(minute=0)` 撤销推迟，回到循环开头重新 `check_reduce`：够了直接出击；还不够再抛一次 `ScriptEnd`，这时已同步过，直接按真实值推迟。
+     - 触发：条件都在 `emotion_sync_available()`：本次任务还没同步过、日服、任务名正好是 `Main` 或 `Event`（主线2/3、活动 A～D、GemsFarming 等可能用别的舰队，寮舍里不是它们的船）、心情模式为计算。每次任务只同步一次，有两个入口：
+       - 任务开始、进入出击循环之前，由 `emotion_sync_start()` 同步。如果开局就在地图里或自律菜单里（例如重启后接着打），去不了寮舍，就跳过，留给下一条。主线和活动用同一组舰队，前后接着跑时，`EMOTION_SYNC_INTERVAL`（10 分钟）内同步过这些游戏舰队就不再去（`emotion_synced_recently`）。
+       - `CampaignRun.run()` 捕获 `ScriptEnd('Emotion control')`（来源是进图前 `check_reduce` 或低心情弹窗撤退）后，由 `emotion_sync_retry()` 同步。同步成功就 `task_delay(minute=0)` 撤销推迟，回到循环开头重新 `check_reduce`：够了直接出击；还不够再抛一次 `ScriptEnd`，这时已同步过，直接按真实值推迟。开局已同步过时不再去寮舍。
      - 流程：`page_dorm` → `DORM_TRAINING_ENTER`（左下角「訓練 6/6」）→ 弹窗的「訓練」「休憩」两个标签页（选中的标签模板能匹配上，未选中的颜色是反的）→ 每页 6 张卡，读最后两行コンディション和回復速度（`ButtonGrid` 间距 170）→ 关闭弹窗。每页取心情最低的船。
      - 对应：按用户配置里的基础职能（`cross_get` 读原始 `Fleet.FleetOrder`，去掉 `_auto_swap`，不受本次互换影响），「訓練」页 = Boss 队，「休憩」页 = 道中队。「全部 / 待机」职能不同步。
      - 写入：`Value` = 最低心情，`Record` = 现在。恢复速度换算成 `Recover / Oath`（20 不在寮舍、30 不在寮舍 + 誓约、40 一层、50 二层、60 二层 + 誓约），不在表里的速度保留原设置。写到所有共用该游戏舰队的任务（`emotion_apply`），结果写进状态文件的 `_EmotionSync` 键，面板显示同步时间。写入用 `emotion.config`：`CampaignRun.campaign.config` 是深拷贝，`Emotion` 读的是它。

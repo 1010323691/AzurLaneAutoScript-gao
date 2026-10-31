@@ -6,6 +6,7 @@ import random
 import module.config.server as server
 from module.campaign.campaign_base import CampaignBase
 from module.campaign.campaign_event import CampaignEvent
+from module.campaign.sortie_status import emotion_synced_recently, status_read
 from module.campaign.campaign_ui import MODE_SWITCH_1
 from module.config.config import AzurLaneConfig
 from module.exception import CampaignEnd, RequestHumanTakeover, ScriptEnd
@@ -13,6 +14,9 @@ from module.handler.fast_forward import map_files, to_map_file_name
 from module.logger import logger
 from module.notify import handle_notify
 from module.ui.page import page_campaign
+
+# Minutes, skip emotion sync before sortie if synced recently
+EMOTION_SYNC_INTERVAL = 10
 
 
 class CampaignRun(CampaignEvent):
@@ -400,10 +404,58 @@ class CampaignRun(CampaignEvent):
             self.config.task_call('Commission', force_call=True)
             self.config.task_stop('Commission notice found')
 
+    def emotion_sync_available(self):
+        """
+        Returns:
+            bool: If real emotion can be synced from dorm in this task, and not synced yet.
+        """
+        if self.emotion_synced:
+            return False
+        # Dorm assets are from JP only
+        if server.server != 'jp':
+            return False
+        # Dorm training is the mob fleet and boss fleet of Main and Event.
+        # Not Main2, Main3, EventA, GemsFarming, etc., they may use other fleets.
+        if self.config.task.command not in ['Main', 'Event']:
+            return False
+        if not self.campaign.emotion.is_calculate:
+            return False
+        return True
+
+    def emotion_sync_start(self):
+        """
+        Calculated emotion may differ from the real one, e.g. fleets used in manual play.
+        Read real emotion in dorm before the first sortie of this task.
+
+        Returns:
+            bool: If synced.
+
+        Pages:
+            in: Any
+            out: page_dorm, if synced
+        """
+        if not self.emotion_sync_available():
+            return False
+        # Main and Event use the same fleets, don't sync again when they run one after another
+        numbers = [n for n in [self.config.Fleet_Fleet1, self.config.Fleet_Fleet2] if n]
+        if emotion_synced_recently(status_read(self.config.config_name), numbers, EMOTION_SYNC_INTERVAL):
+            logger.info(f'Emotion synced within {EMOTION_SYNC_INTERVAL} minutes, skip emotion sync before sortie')
+            return False
+        self.device.screenshot()
+        self.campaign.device.image = self.device.image
+        # Can't go to dorm without retreating, sync in emotion_sync_retry() if emotion is not enough
+        if self.campaign.is_in_map() or self.campaign.is_in_auto_search_menu():
+            logger.info('In map, skip emotion sync before sortie')
+            return False
+
+        self.emotion_synced = True
+        from module.combat.emotion_sync import EmotionSync
+        return EmotionSync(config=self.config, device=self.device).emotion_sync(self.campaign.emotion)
+
     def emotion_sync_retry(self, error):
         """
         Calculated emotion may differ from the real one. Before waiting for emotion,
-        read real emotion in dorm and check again.
+        read real emotion in dorm and check again, if not synced at the start of this task.
 
         Args:
             error (ScriptEnd):
@@ -416,16 +468,7 @@ class CampaignRun(CampaignEvent):
             in: Any
             out: page_dorm, if synced
         """
-        if str(error) != 'Emotion control' or self.emotion_synced:
-            return False
-        # Dorm assets are from JP only
-        if server.server != 'jp':
-            return False
-        # Dorm training is the mob fleet and boss fleet of Main and Event, not the fleets of GemsFarming
-        command = self.config.task.command
-        if not command.startswith('Main') and not command.startswith('Event'):
-            return False
-        if not self.campaign.emotion.is_calculate:
+        if str(error) != 'Emotion control' or not self.emotion_sync_available():
             return False
 
         self.emotion_synced = True
@@ -450,6 +493,7 @@ class CampaignRun(CampaignEvent):
         self.emotion_synced = False
         self.run_count = 0
         self.run_limit = self.config.StopCondition_RunCount
+        self.emotion_sync_start()
         while 1:
             # End
             if total and self.run_count >= total:

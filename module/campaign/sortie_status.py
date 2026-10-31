@@ -13,7 +13,7 @@ import json
 import os
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from module.logger import logger
 
@@ -102,6 +102,31 @@ def _to_datetime(value):
         except ValueError:
             return None
     return None
+
+
+def emotion_synced_recently(status, numbers, minutes, now=None):
+    """
+    Args:
+        status (dict): Result of status_read()
+        numbers (list[int]): Game fleet numbers to check
+        minutes (int):
+        now (datetime):
+
+    Returns:
+        bool: If all the game fleets were synced from dorm within `minutes`.
+    """
+    sync = status.get(EMOTION_SYNC_KEY, {})
+    if not isinstance(sync, dict):
+        return False
+    time = _to_datetime(sync.get('time'))
+    fleets = sync.get('fleets', {})
+    if time is None or not isinstance(fleets, dict) or not numbers:
+        return False
+    if now is None:
+        now = datetime.now()
+    if not timedelta(0) <= now - time <= timedelta(minutes=minutes):
+        return False
+    return all(str(number) in fleets for number in numbers)
 
 
 def emotion_slots(config_data, number, exclude_task=None):

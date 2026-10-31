@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import module.campaign.sortie_status as sortie_status
 from module.campaign.sortie_status import build_groups, build_rows, emotion_current, emotion_slots, format_time, \
-    latest_emotion, stage_name, status_battle, status_read, status_update
+    emotion_synced_recently, latest_emotion, stage_name, status_battle, status_read, status_update
 from module.combat.emotion import FleetEmotion
 
 NOW = datetime(2026, 10, 31, 18, 0, 0)
@@ -229,6 +229,16 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(latest_emotion(data, 1), (99, datetime(2026, 10, 31, 18, 30)))
         self.assertEqual(latest_emotion(data, 1, exclude_task='Event')[0], 52)
         self.assertIsNone(latest_emotion(data, 5))
+
+    def test_emotion_synced_recently(self):
+        status = {'_EmotionSync': {'time': '2026-10-31 17:55:00', 'fleets': {'1': {}, '2': {}}}}
+        self.assertTrue(emotion_synced_recently(status, [1, 2], 10, now=NOW))
+        self.assertFalse(emotion_synced_recently(status, [1, 2], 3, now=NOW))
+        self.assertFalse(emotion_synced_recently(status, [1, 3], 10, now=NOW))
+        self.assertFalse(emotion_synced_recently(status, [], 10, now=NOW))
+        self.assertFalse(emotion_synced_recently({}, [1], 10, now=NOW))
+        # Sync time in the future
+        self.assertFalse(emotion_synced_recently(status, [1], 10, now=datetime(2026, 10, 31, 17, 0)))
 
     def test_stage_name(self):
         # Real case: Campaign_Name is the map file name in Alas process
