@@ -8,6 +8,7 @@ from PIL import Image
 
 import module.config.server as server
 from module.base.resource import release_resources
+from module.base.timer import Timer
 from module.campaign.campaign_base import CampaignBase
 from module.combat.auto_search_combat import AutoSearchCombat
 from module.combat.combat import Combat
@@ -255,8 +256,85 @@ class TestBattleStatusAfterWon(unittest.TestCase):
     def test_combat_status_resets(self):
         combat = FakeCombatStatusBattle(['in_map'])
         combat.battle_status_won = True
+        combat.battle_status_grade = 'S'
         combat.combat_status(expected_end='no_searching')
         self.assertFalse(combat.battle_status_won)
+        self.assertIsNone(combat.battle_status_grade)
+
+
+class TestExpInfoGrade(unittest.TestCase):
+    def exp_info(self, combat, *names):
+        combat.appearing = set(names)
+        return combat.handle_exp_info()
+
+    def test_get_ship_misread_as_exp_info_b(self):
+        # Real case: JP, BATTLE_STATUS_S clicked, then GET_SHIP animation matched EXP_INFO_B.
+        # exp_info=True disabled handle_get_ship() and combat status stuck on the new ship screen.
+        combat = FakeBattleStatus()
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        self.assertEqual(combat.battle_status_grade, 'S')
+        self.assertFalse(self.exp_info(combat, 'EXP_INFO_B', 'GET_SHIP'))
+        self.assertFalse(self.exp_info(combat, 'EXP_INFO_A'))
+        self.assertTrue(self.exp_info(combat, 'EXP_INFO_S'))
+        self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S', 'EXP_INFO_S'])
+
+    def test_later_battle_status_misread_ignored(self):
+        # Real case: JP, BATTLE_STATUS_S, BATTLE_STATUS_S, BATTLE_STATUS_B, then EXP_INFO_S
+        combat = FakeBattleStatus()
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        self.assertTrue(combat.battle('BATTLE_STATUS_B'))
+        self.assertEqual(combat.battle_status_grade, 'S')
+        self.assertTrue(self.exp_info(combat, 'EXP_INFO_S'))
+
+    def fast_timer(self, combat):
+        combat._exp_info_grade_timer = Timer(0.01)
+
+    def test_misread_battle_status_falls_back(self):
+        # First battle status misread as S, but real exp info is A and stays
+        combat = FakeBattleStatus()
+        self.fast_timer(combat)
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        self.assertFalse(self.exp_info(combat, 'EXP_INFO_A'))
+        time.sleep(0.03)
+        self.assertTrue(self.exp_info(combat, 'EXP_INFO_A'))
+        self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S', 'EXP_INFO_A'])
+        self.assertIsNone(combat.battle_status_grade)
+
+    def test_flashing_misread_not_accepted(self):
+        # Misread on animation frames is not continuous, timer restarts
+        combat = FakeBattleStatus()
+        self.fast_timer(combat)
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        for _ in range(3):
+            self.assertFalse(self.exp_info(combat, 'EXP_INFO_B'))
+            self.assertFalse(self.exp_info(combat, 'GET_SHIP'))
+            time.sleep(0.03)
+        self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S'])
+
+    def test_timer_not_shared_and_reset(self):
+        # A started timer must not make another combat or the next battle accept a misread at once
+        first = FakeBattleStatus()
+        first.battle('BATTLE_STATUS_S')
+        self.exp_info(first, 'EXP_INFO_B')
+        self.assertTrue(first._exp_info_grade_timer.started())
+        second = FakeBattleStatus()
+        self.assertFalse(second._exp_info_grade_timer.started())
+        first.battle_status_reset()
+        self.assertFalse(first._exp_info_grade_timer.started())
+        self.assertIsNone(first.battle_status_grade)
+
+    def test_grade_a_and_b(self):
+        for grade in ['A', 'B']:
+            combat = FakeBattleStatus()
+            self.assertTrue(combat.battle(f'BATTLE_STATUS_{grade}'))
+            self.assertFalse(self.exp_info(combat, 'EXP_INFO_S'))
+            self.assertTrue(self.exp_info(combat, f'EXP_INFO_{grade}'))
+
+    def test_unknown_grade_accepts_all(self):
+        # Battle status not seen, such as the white screen bug in game
+        for grade in ['S', 'A', 'B']:
+            combat = FakeBattleStatus()
+            self.assertTrue(self.exp_info(combat, f'EXP_INFO_{grade}'))
 
 
 class TestCombatStatusDefeat(unittest.TestCase):

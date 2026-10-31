@@ -30,6 +30,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   7. **出击战败后撤退并延迟重试**：上游的地图战只认 S/A/B 结算，战败（C/D）结算会一直等到 `GameStuckError`；在跳过模式下，主线会因此被推迟到次日。
      - 现在 `Combat.handle_exp_info_defeat()` 点掉 `EXP_INFO_C/D`，并设置 `combat_defeated`。前提是本场先出现过 `BATTLE_STATUS_C/D`（`battle_status_defeated`）：`EXP_INFO_C` 只是颜色检查，曾在 S 胜利后的获得新船画面上误判，并屏蔽了 `handle_get_ship`。之后画面回到地图或关卡页时，`combat_status` 抛出 `CampaignDefeat`（`CampaignEnd` 的子类）。`expected_end` 不在 `MAP_EXPECTED_END` 里的地图外战斗（raid、医院、每日用回调函数，公会 Boss 用 `in_ui`）不抛，仍按各自的结束条件退出。
      - `BATTLE_STATUS_C/D` 也只是灰色竖条的颜色检查，国服曾在 S 胜利后的获得新船画面上误判为 D，被当成战败撤退。现在 `handle_battle_status()` 点过 S/A/B 后就设置 `battle_status_won`，同一场里不再认 C/D。每场开始时（`combat_preparation`、`combat_execute`、`combat_status`、`auto_search_combat_execute`）都会重置这个标记；daemon 不经过 `combat_status`，也会在战前准备时重置。
+     - `EXP_INFO_S/A/B` 同样是颜色检查。日服曾在 S 胜利后的获得新船出场动画上误判为 `EXP_INFO_B`，`combat_status` 里 `exp_info` 变真后不再调 `handle_get_ship`，停在新船展示页直到卡死。现在 `handle_battle_status()` 同时记下本场第一次认出的评级 `battle_status_grade`（结算页也会在过渡帧上误判，曾出现 S、S、B 之后经验页是 S，所以不覆盖），`handle_exp_info()` 只认同评级的经验页（没见到结算时都认；不同评级的经验页连续出现 `EXP_INFO_GRADE_SECOND`（5 秒）以上，说明是结算评级认错了，改为接受它，动画上一闪而过的误判会让计时清零），在上面那几处一起重置。历史日志 330 场胜利里经验页评级都和结算一致，不同评级的点击都是动画过渡帧误判。
      - `CampaignBase.run` 捕获后调用 `handle_campaign_defeat()`：还在地图里就撤退，然后 `task_delay(minute=DEFEAT_RETRY_MINUTE)`（60 分钟），发送通知，再 `task_stop()`。
      - 自律寻敌模式：游戏不等点击 D 结算，直接停在「DEFEAT / 艦隊戦力を強化しよう！」提示页（素材 `DEFEAT_TIPS`：锚图标模板匹配，点底部「戻る」）。`auto_search_combat_execute` 遇到 C/D 结算或提示页就结束等待；`auto_search_combat_status` 由 `handle_combat_defeat_tips()` 点掉提示页并设置 `combat_defeated`，之后回到自律中、自律结算菜单、地图或关卡页时抛 `CampaignDefeat`。`handle_campaign_defeat()` 先 `ensure_auto_search_exit()` 关掉自律结算菜单再撤退。普通战斗的 `combat_execute` / `combat_status` 也会点掉这个提示页。点「戻る」之后回到哪个画面还没在真机上确认过。大世界有自己的 C/D 处理，不受影响。D 素材和提示页素材只用日服截图验证过。
   8. **低心情弹窗时撤退并推迟**：ALAS 只推算心情；主线、活动等任务各记各的心情，和手动游玩一起用同一批舰队时，推算值会比实际高。游戏弹出低心情确认框（实际心情 30 以下）时，上游只在 `Emotion.Mode` 含 `ignore` 时点确定，否则一直等到 `GameStuckError`，跳过模式下任务会被推迟到次日。
@@ -348,6 +349,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | 出击任务被推迟到次日，错误现场是「コンディションが良くない」低心情确认框 | 推算心情比实际高（多个任务或手动游玩共用舰队）。fork 第 8 条后会撤退并推迟到心情恢复 | 日志的 `Low emotion popup, correct emotion`；各任务的 `Emotion.*` 与 `Fleet.Fleet1/2` |
 | 打 Boss 前有剧情，日志在 `STORY_SKIP` 之后紧跟 `POPUP_CANCEL_IGNORE_LOW_EMOTION`、`EMOTION WITHDRAW`，最后停在 S 结算页 `GameStuckError` | 剧情跳过确认框被误认成低心情弹窗（fork 第 8 条已处理） | `CampaignBase.handle_combat_low_emotion` 的 `_story_popup_expected` |
 | 打赢了却撤退，日志里 `BATTLE_STATUS_S` 之后出现 `Battle Status D`、`Combat defeated`，紧接着又是 `EXP_INFO_S` | 获得新船画面被误认成 D 结算（fork 第 7 条已处理） | 日志的 `GET_SHIP` 前后几行 |
+| 停在获得新船展示页不动，日志 `BATTLE_STATUS_S`、`GET_SHIP` 之后是一次 `EXP_INFO_B` 就没了 | 新船出场动画被误认成 B 经验页（fork 第 7 条已处理） | `Combat.handle_exp_info` 的 `battle_status_grade` |
 | 地图里停在 Boss 旁边不动，日志最后是 `[expected_end] in_stage` 和 `EXP_INFO_S` | 去打 Boss 的路上被移动塞壬拦截（fork 第 9 条已处理） | 日志的 `Expected in_stage but back in map` |
 | 出击中途长时间不动 | 心情等待（日志有 `EMOTION WAIT`），不是故障 | `module/combat/emotion.py`；用户配置 `Emotion.*` 或舰队职能 |
 | `GamePageUnknownError` 后 Alas 退出 | 画面被未处理的弹窗挡住，或停在没有 Home 按钮的页面 | `module/ui/ui.py` 的 `ui_additional`、`ui_page_main_popups`；用最后一张截图补素材和处理分支 |

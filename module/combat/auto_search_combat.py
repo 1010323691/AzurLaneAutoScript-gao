@@ -221,7 +221,7 @@ class AutoSearchCombat(MapOperation, Combat, CampaignStatus):
         self.device.screenshot_interval_set('combat')
         self.combat_defeated = False
         self.battle_status_defeated = False
-        self.battle_status_won = False
+        self.battle_status_reset()
         for _ in self.loop():
 
             if self.handle_combat_automation_confirm():

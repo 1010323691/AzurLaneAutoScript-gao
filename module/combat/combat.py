@@ -1,5 +1,6 @@
 import numpy as np
 
+from module.base.decorator import cached_property
 from module.base.timer import Timer
 from module.base.utils import color_similar, get_color
 from module.combat.assets import *
@@ -27,10 +28,27 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     battle_status_defeated = False
     # Battle status S, A or B appeared, set in handle_battle_status()
     battle_status_won = False
+    # Grade of the won battle, 'S', 'A' or 'B', exp info has the same grade
+    battle_status_grade = None
+    # Exp info of another grade staying this long means battle status was misread, accept it
+    EXP_INFO_GRADE_SECOND = 5
     # expected_end of combats in map, see combat_status()
     MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
     # Seconds staying in map after battle, when expecting in_stage
     IN_STAGE_MISSING_SECOND = 5
+
+    @cached_property
+    def _exp_info_grade_timer(self):
+        # Per instance, a class level Timer would be shared by all combats
+        return Timer(self.EXP_INFO_GRADE_SECOND, count=self.EXP_INFO_GRADE_SECOND * 2)
+
+    def battle_status_reset(self):
+        """
+        Reset battle status of a new battle.
+        """
+        self.battle_status_won = False
+        self.battle_status_grade = None
+        self._exp_info_grade_timer.clear()
 
     def combat_appear(self):
         """
@@ -252,7 +270,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         self.device.stuck_record_clear()
         self.device.click_record_clear()
         # A new battle, daemon calls handle_battle_status() without combat_status()
-        self.battle_status_won = False
+        self.battle_status_reset()
         skip_first_screenshot = True
         interval_set = False
 
@@ -384,7 +402,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             drop (DropImage):
         """
         logger.info('Combat execute')
-        self.battle_status_won = False
+        self.battle_status_reset()
         self.submarine_call_reset()
         self.combat_auto_reset()
         self.combat_manual_reset()
@@ -445,6 +463,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
+            # Keep the first grade, later frames may misread, like BATTLE_STATUS_B after S
+            self.battle_status_grade = self.battle_status_grade or 'S'
             self.device.click(BATTLE_STATUS_S)
             return True
         if self.appear(BATTLE_STATUS_A, interval=self.battle_status_click_interval):
@@ -454,6 +474,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
+            self.battle_status_grade = self.battle_status_grade or 'A'
             self.device.click(BATTLE_STATUS_A)
             return True
         if self.appear(BATTLE_STATUS_B, interval=self.battle_status_click_interval):
@@ -463,6 +484,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
+            self.battle_status_grade = self.battle_status_grade or 'B'
             self.device.click(BATTLE_STATUS_B)
             return True
         # BATTLE_STATUS_C and BATTLE_STATUS_D are color checks of a grey strip,
@@ -534,16 +556,32 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         """
         if self.is_combat_executing():
             return False
-        if self.appear_then_click(EXP_INFO_S):
-            self.device.sleep((0.25, 0.5))
-            return True
-        if self.appear_then_click(EXP_INFO_A):
-            self.device.sleep((0.25, 0.5))
-            return True
-        if self.appear_then_click(EXP_INFO_B):
-            self.device.sleep((0.25, 0.5))
-            return True
+        mismatched = None
+        for grade, button in [('S', EXP_INFO_S), ('A', EXP_INFO_A), ('B', EXP_INFO_B)]:
+            # EXP_INFO_* are color checks, EXP_INFO_B may match GET_SHIP animation of an S battle.
+            # Exp info has the same grade as battle status, if battle status is known.
+            if self.battle_status_grade and grade != self.battle_status_grade:
+                if mismatched is None and self.appear(button):
+                    mismatched = button
+                continue
+            if self.appear_then_click(button):
+                self._exp_info_grade_timer.clear()
+                self.device.sleep((0.25, 0.5))
+                return True
 
+        # Misread exp info flashes during animations, but a real one stays.
+        # If it stays, battle status was misread.
+        if mismatched is None:
+            self._exp_info_grade_timer.clear()
+            return False
+        self._exp_info_grade_timer.start()
+        if self._exp_info_grade_timer.reached():
+            logger.warning(f'{mismatched} stays but battle status is {self.battle_status_grade}, accept it')
+            self._exp_info_grade_timer.clear()
+            self.battle_status_grade = None
+            self.device.click(mismatched)
+            self.device.sleep((0.25, 0.5))
+            return True
         return False
 
     def handle_exp_info_defeat(self):
@@ -637,7 +675,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         exp_info = False  # This is for the white screen bug in game
         self.combat_defeated = False
         self.battle_status_defeated = False
-        self.battle_status_won = False
+        self.battle_status_reset()
         in_map_timer = Timer(self.IN_STAGE_MISSING_SECOND, count=self.IN_STAGE_MISSING_SECOND * 2)
         for _ in self.loop():
 
