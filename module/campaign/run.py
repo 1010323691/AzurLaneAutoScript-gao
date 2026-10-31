@@ -3,6 +3,7 @@ import importlib
 import os
 import random
 
+import module.config.server as server
 from module.campaign.campaign_base import CampaignBase
 from module.campaign.campaign_event import CampaignEvent
 from module.campaign.campaign_ui import MODE_SWITCH_1
@@ -24,6 +25,8 @@ class CampaignRun(CampaignEvent):
     run_count: int
     run_limit: int
     is_stage_loop = False
+    # Real emotion is synced from dorm once per task
+    emotion_synced = False
 
     def load_campaign(self, name, folder='campaign_main'):
         """
@@ -397,6 +400,42 @@ class CampaignRun(CampaignEvent):
             self.config.task_call('Commission', force_call=True)
             self.config.task_stop('Commission notice found')
 
+    def emotion_sync_retry(self, error):
+        """
+        Calculated emotion may differ from the real one. Before waiting for emotion,
+        read real emotion in dorm and check again.
+
+        Args:
+            error (ScriptEnd):
+
+        Returns:
+            bool: True to run campaign again, emotion will be checked with the real one,
+                and the task is delayed again if still not enough.
+
+        Pages:
+            in: Any
+            out: page_dorm, if synced
+        """
+        if str(error) != 'Emotion control' or self.emotion_synced:
+            return False
+        # Dorm assets are from JP only
+        if server.server != 'jp':
+            return False
+        # Dorm training is the mob fleet and boss fleet of Main and Event, not the fleets of GemsFarming
+        command = self.config.task.command
+        if not command.startswith('Main') and not command.startswith('Event'):
+            return False
+        if not self.campaign.emotion.is_calculate:
+            return False
+
+        self.emotion_synced = True
+        from module.combat.emotion_sync import EmotionSync
+        if not EmotionSync(config=self.config, device=self.device).emotion_sync(self.campaign.emotion):
+            return False
+        # Undo the task delay of calculated emotion, check_reduce() delays again if real emotion is not enough
+        self.config.task_delay(minute=0)
+        return True
+
     def run(self, name, folder='campaign_main', mode='normal', total=0):
         """
         Args:
@@ -408,6 +447,7 @@ class CampaignRun(CampaignEvent):
         name, folder = self.handle_stage_name(name, folder, mode=mode)
         self.config.override(Campaign_Name=name, Campaign_Event=folder)
         self.load_campaign(name, folder=folder)
+        self.emotion_synced = False
         self.run_count = 0
         self.run_limit = self.config.StopCondition_RunCount
         while 1:
@@ -472,6 +512,8 @@ class CampaignRun(CampaignEvent):
             except ScriptEnd as e:
                 logger.hr('Script end')
                 logger.info(str(e))
+                if self.emotion_sync_retry(e):
+                    continue
                 break
 
             # After run
