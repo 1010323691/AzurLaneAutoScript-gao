@@ -8,6 +8,7 @@ from PIL import Image
 
 import module.config.server as server
 from module.base.resource import release_resources
+from module.base.timer import Timer
 from module.campaign.campaign_base import CampaignBase
 from module.combat.auto_search_combat import AutoSearchCombat
 from module.combat.combat import Combat
@@ -284,6 +285,31 @@ class TestExpInfoGrade(unittest.TestCase):
         self.assertTrue(combat.battle('BATTLE_STATUS_B'))
         self.assertEqual(combat.battle_status_grade, 'S')
         self.assertTrue(self.exp_info(combat, 'EXP_INFO_S'))
+
+    def fast_timer(self, combat):
+        combat._exp_info_grade_timer = Timer(0.01)
+
+    def test_misread_battle_status_falls_back(self):
+        # First battle status misread as S, but real exp info is A and stays
+        combat = FakeBattleStatus()
+        self.fast_timer(combat)
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        self.assertFalse(self.exp_info(combat, 'EXP_INFO_A'))
+        time.sleep(0.03)
+        self.assertTrue(self.exp_info(combat, 'EXP_INFO_A'))
+        self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S', 'EXP_INFO_A'])
+        self.assertIsNone(combat.battle_status_grade)
+
+    def test_flashing_misread_not_accepted(self):
+        # Misread on animation frames is not continuous, timer restarts
+        combat = FakeBattleStatus()
+        self.fast_timer(combat)
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        for _ in range(3):
+            self.assertFalse(self.exp_info(combat, 'EXP_INFO_B'))
+            self.assertFalse(self.exp_info(combat, 'GET_SHIP'))
+            time.sleep(0.03)
+        self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S'])
 
     def test_grade_a_and_b(self):
         for grade in ['A', 'B']:

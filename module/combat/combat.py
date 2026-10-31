@@ -29,6 +29,9 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     battle_status_won = False
     # Grade of the won battle, 'S', 'A' or 'B', exp info has the same grade
     battle_status_grade = None
+    # Exp info of another grade staying this long means battle status was misread, accept it
+    EXP_INFO_GRADE_SECOND = 5
+    _exp_info_grade_timer = Timer(EXP_INFO_GRADE_SECOND, count=EXP_INFO_GRADE_SECOND * 2)
     # expected_end of combats in map, see combat_status()
     MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
     # Seconds staying in map after battle, when expecting in_stage
@@ -542,15 +545,32 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         """
         if self.is_combat_executing():
             return False
+        mismatched = None
         for grade, button in [('S', EXP_INFO_S), ('A', EXP_INFO_A), ('B', EXP_INFO_B)]:
             # EXP_INFO_* are color checks, EXP_INFO_B may match GET_SHIP animation of an S battle.
             # Exp info has the same grade as battle status, if battle status is known.
             if self.battle_status_grade and grade != self.battle_status_grade:
+                if mismatched is None and self.appear(button):
+                    mismatched = button
                 continue
             if self.appear_then_click(button):
+                self._exp_info_grade_timer.clear()
                 self.device.sleep((0.25, 0.5))
                 return True
 
+        # Misread exp info flashes during animations, but a real one stays.
+        # If it stays, battle status was misread.
+        if mismatched is None:
+            self._exp_info_grade_timer.clear()
+            return False
+        self._exp_info_grade_timer.start()
+        if self._exp_info_grade_timer.reached():
+            logger.warning(f'{mismatched} stays but battle status is {self.battle_status_grade}, accept it')
+            self._exp_info_grade_timer.clear()
+            self.battle_status_grade = None
+            self.device.click(mismatched)
+            self.device.sleep((0.25, 0.5))
+            return True
         return False
 
     def handle_exp_info_defeat(self):
