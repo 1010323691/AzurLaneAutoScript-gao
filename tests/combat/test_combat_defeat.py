@@ -253,6 +253,28 @@ class TestBattleStatusAfterWon(unittest.TestCase):
         self.assertTrue(combat.battle('BATTLE_STATUS_D'))
         self.assertTrue(combat.battle_status_defeated)
 
+    def get_ship(self, combat):
+        combat.appearing = {'GET_SHIP'}
+        return combat.handle_get_ship()
+
+    def test_get_ship_without_battle_status(self):
+        # Real case: JP auto search skipped battle status, GET_SHIP clicked, then it matched BATTLE_STATUS_C
+        combat = FakeBattleStatus()
+        self.assertTrue(self.get_ship(combat))
+        self.assertTrue(combat.battle_status_won)
+        self.assertFalse(combat.battle('BATTLE_STATUS_C'))
+        self.assertFalse(combat.battle_status_defeated)
+
+    def test_get_ship_after_misread_defeat(self):
+        # GET_SHIP matched BATTLE_STATUS_C and EXP_INFO_D before the GET_SHIP template
+        combat = FakeBattleStatus()
+        self.assertTrue(combat.battle('BATTLE_STATUS_C'))
+        combat.combat_defeated = True
+        self.assertTrue(self.get_ship(combat))
+        self.assertFalse(combat.battle_status_defeated)
+        self.assertFalse(combat.combat_defeated)
+        self.assertFalse(combat.battle('BATTLE_STATUS_D'))
+
     def test_combat_status_resets(self):
         combat = FakeCombatStatusBattle(['in_map'])
         combat.battle_status_won = True
