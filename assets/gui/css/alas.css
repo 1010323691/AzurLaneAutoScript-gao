@@ -560,6 +560,16 @@ pre.rich-traceback-code {
     font-size: .8rem;
 }
 
+.sortie-speed {
+    flex: none;
+    font-size: .75rem;
+    color: #4caf50;
+}
+
+.sortie-head-running .sortie-title {
+    color: #3f88c5;
+}
+
 .sortie-note {
     font-size: .75rem;
     color: darkgrey;

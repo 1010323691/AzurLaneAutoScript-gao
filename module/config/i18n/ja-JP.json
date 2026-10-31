@@ -3076,7 +3076,8 @@
       "RoleAll": "全部",
       "RoleStandby": "待機",
       "AutoSwap": "自動入れ替え",
-      "Shared": "{task} と第 {fleets} 艦隊を共用、コンディションは別々に計算、高めの可能性あり",
+      "RecoverSpeed": "+{speed}/h",
+      "Synced": "{time} に寮舎から実際のコンディションを同期（寮舎の艦のみ）",
       "NoEmotion": "コンディション計算オフ"
     },
     "AddAlas": {

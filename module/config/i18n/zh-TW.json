@@ -3076,7 +3076,8 @@
       "RoleAll": "全部",
       "RoleStandby": "待機",
       "AutoSwap": "自動互換",
-      "Shared": "與 {task} 共用第 {fleets} 艦隊，心情分開推算，可能偏高",
+      "RecoverSpeed": "+{speed}/h",
+      "Synced": "真實心情 {time} 從宿舍同步（只統計宿舍裡的船）",
       "NoEmotion": "未開啟心情計算"
     },
     "AddAlas": {

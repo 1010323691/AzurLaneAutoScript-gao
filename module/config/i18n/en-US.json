@@ -3076,7 +3076,8 @@
       "RoleAll": "All",
       "RoleStandby": "Standby",
       "AutoSwap": "Auto swap",
-      "Shared": "Fleet {fleets} shared with {task}, emotion calculated separately, may be higher",
+      "RecoverSpeed": "+{speed}/h",
+      "Synced": "Real emotion synced from dorm at {time} (ships in dorm only)",
       "NoEmotion": "Emotion calculation off"
     },
     "AddAlas": {

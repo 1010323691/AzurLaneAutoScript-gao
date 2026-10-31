@@ -7,8 +7,8 @@ from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import module.campaign.sortie_status as sortie_status
-from module.campaign.sortie_status import build_rows, emotion_current, format_time, status_battle, status_read, \
-    status_update
+from module.campaign.sortie_status import build_groups, build_rows, emotion_current, emotion_slots, format_time, \
+    latest_emotion, status_battle, status_read, status_update
 from module.combat.emotion import FleetEmotion
 
 NOW = datetime(2026, 10, 31, 18, 0, 0)
@@ -171,12 +171,36 @@ class TestBuildRows(unittest.TestCase):
     def test_disabled(self):
         self.assertEqual(build_rows({'Main': task_data(enable=False)}, {}, now=NOW), [])
 
-    def test_shared_fleets(self):
-        data = {'Main': task_data(), 'Event': task_data(name='T5')}
-        rows = build_rows(data, {}, now=NOW)
-        self.assertEqual(rows[0]['shared'], [('Event', [1, 2])])
-        # Noted once
-        self.assertEqual(rows[1]['shared'], [])
+    def test_groups(self):
+        # Real case: Main and Event use the same game fleets, shown as one group
+        data = {'Main': task_data(value1=52), 'Event': task_data(name='T5', value1=99),
+                'Main2': task_data(fleet2=0)}
+        data['Main2']['Fleet']['Fleet1'] = 3
+        data['Event']['Emotion']['Fleet1Record'] = '2026-10-31 17:00:00'
+        status = {'Event': {'state': 'battle', 'order': 'fleet1_boss_fleet2_mob', 'fleet': 1},
+                  '_EmotionSync': {'time': '2026-10-31 17:30:00', 'fleets': {'1': {'value': 52, 'speed': 40}}}}
+        groups = build_groups(data, status, running_task='Event', now=NOW)
+        self.assertEqual(len(groups), 2)
+        group = groups[0]
+        self.assertEqual([row['task'] for row in group['tasks']], ['Main', 'Event'])
+        # Fleets of running task, with the latest emotion record shared by both tasks
+        self.assertEqual([f['role'] for f in group['fleets']], ['boss', 'mob'])
+        self.assertEqual([f['fighting'] for f in group['fleets']], [True, False])
+        self.assertEqual(group['fleets'][0]['value'], 52)
+        self.assertEqual([f['speed'] for f in group['fleets']], [40, 20])
+        self.assertEqual(group['synced'], datetime(2026, 10, 31, 17, 30))
+        self.assertEqual([f['number'] for f in groups[1]['fleets']], [3])
+        self.assertIsNone(groups[1]['synced'])
+
+    def test_latest_emotion(self):
+        data = {'Main': task_data(value1=52), 'Event': task_data(value1=99), 'Hard': {'Fleet': {'Fleet1': 1}}}
+        data['Event']['Emotion']['Fleet1Record'] = '2026-10-31 18:30:00'
+        self.assertEqual(emotion_slots(data, 1), [('Main', 1), ('Event', 1)])
+        self.assertEqual(emotion_slots(data, 1, exclude_task='Main'), [('Event', 1)])
+        self.assertEqual(emotion_slots(data, 0), [])
+        self.assertEqual(latest_emotion(data, 1), (99, datetime(2026, 10, 31, 18, 30)))
+        self.assertEqual(latest_emotion(data, 1, exclude_task='Event')[0], 52)
+        self.assertIsNone(latest_emotion(data, 5))
 
     def test_format_time(self):
         self.assertEqual(format_time(datetime(2026, 11, 1, 0, 5), now=NOW), '11-01 00:05')

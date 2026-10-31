@@ -67,7 +67,8 @@ Overview:
   RoleAll:
   RoleStandby:
   AutoSwap:
-  Shared:
+  RecoverSpeed:
+  Synced:
   NoEmotion:
 
 AddAlas:

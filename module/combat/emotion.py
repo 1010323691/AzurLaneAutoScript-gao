@@ -5,8 +5,8 @@ import numpy as np
 
 from module.base.decorator import cached_property
 from module.base.utils import random_normal_distribution_int
-from module.campaign.sortie_status import (DIC_LIMIT, DIC_RECOVER_MAX, emotion_current, emotion_speed,
-                                           status_battle, status_update)
+from module.campaign.sortie_status import (DIC_LIMIT, DIC_RECOVER_MAX, emotion_current, emotion_slots,
+                                           emotion_speed, latest_emotion, status_battle, status_update)
 from module.config.config import AzurLaneConfig
 from module.exception import ScriptEnd, ScriptError, RequestHumanTakeover
 from module.logger import logger
@@ -30,12 +30,50 @@ class FleetEmotion:
         self.current = 0
 
     @property
+    def number(self):
+        """
+        Returns:
+            int: Game fleet number of this fleet slot, 0 if unknown.
+        """
+        return getattr(self.config, f'Fleet_Fleet{self.fleet}', 0)
+
+    def shared_slots(self):
+        """
+        Returns:
+            list[tuple[str, int]]: (task, fleet slot) of other tasks using the same game fleet.
+        """
+        try:
+            data = self.config.data
+            task = self.config.task.command
+        except AttributeError:
+            return []
+        if not isinstance(data, dict):
+            return []
+        return emotion_slots(data, self.number, exclude_task=task)
+
+    def _latest(self):
+        """
+        Emotion belongs to the game fleet. Tasks using the same game fleet, such as Main and Event,
+        share it, the latest record wins.
+
+        Returns:
+            tuple[int, datetime.datetime]:
+        """
+        value = getattr(self.config, f'Emotion_Fleet{self.fleet}Value')
+        record = getattr(self.config, f'Emotion_Fleet{self.fleet}Record')
+        if self.shared_slots():
+            other = latest_emotion(self.config.data, self.number, exclude_task=self.config.task.command)
+            if other is not None and other[1] > record:
+                return other
+        return value, record
+
+    @property
     def value(self):
         """
         Returns:
             int: 0 to 150
         """
-        return getattr(self.config, f'Emotion_Fleet{self.fleet}Value')
+        return self._latest()[0]
 
     @property
     def value_name(self):
@@ -51,7 +89,7 @@ class FleetEmotion:
         Returns:
             datetime.datetime:
         """
-        return getattr(self.config, f'Emotion_Fleet{self.fleet}Record')
+        return self._latest()[1]
 
     @property
     def recover(self):
@@ -168,6 +206,30 @@ class Emotion:
             value[fleet.value_name] = fleet.current
 
         self.config.set_record(**value)
+        self.record_shared()
+
+    def record_shared(self, **kwargs):
+        """
+        Save current emotion value to other tasks using the same game fleets.
+
+        Args:
+            **kwargs: Other emotion settings to save to all of them, such as Fleet1Recover=...,
+                keys are named by the fleet slot of current task.
+        """
+        modified = {}
+        record = datetime.now().replace(microsecond=0)
+        for fleet in self.fleets:
+            for task, slot in fleet.shared_slots():
+                modified[f'{task}.Emotion.Fleet{slot}Value'] = fleet.current
+                modified[f'{task}.Emotion.Fleet{slot}Record'] = record
+                for key, value in kwargs.items():
+                    if key.startswith(f'Fleet{fleet.fleet}'):
+                        modified[f'{task}.Emotion.Fleet{slot}{key[len("FleetN"):]}'] = value
+        if not modified:
+            return
+        with self.config.multi_set():
+            for keys, value in modified.items():
+                self.config.cross_set(keys=keys, value=value)
 
     def show(self):
         for fleet in self.fleets:
