@@ -76,6 +76,24 @@ def fleet_lowest(ships):
     return min(ships, key=lambda ship: ship[0])
 
 
+def dorm_floor_reversed(result):
+    """
+    Mob fleet consumes more emotion, so boss fleet in training (floor 1) is expected to be higher than
+    mob fleet in rest (floor 2). Lower means user put the fleets on the wrong floors.
+
+    Args:
+        result (dict): Result of EmotionSync.emotion_read()
+
+    Returns:
+        bool:
+    """
+    training = result.get('training')
+    rest = result.get('rest')
+    if training is None or rest is None:
+        return False
+    return training[0] < rest[0]
+
+
 class EmotionSync(UI):
     def _training_enter(self, skip_first_screenshot=True):
         """
@@ -236,13 +254,19 @@ def emotion_apply(emotion, result):
         logger.warning('Emotion sync failed, keep calculated emotion')
         return False
 
+    reversed_ = dorm_floor_reversed(result)
+    if reversed_:
+        logger.warning(f'Boss fleet in training ({result["training"][0]}) is lower than '
+                       f'mob fleet in rest ({result["rest"][0]}), dorm floors may be reversed. '
+                       f'Put boss fleet on floor 1 (training) and mob fleet on floor 2 (rest)')
+
     with config.multi_set():
         for key, value in settings.items():
             setattr(config, f'Emotion_{key}', value)
         emotion.record()
         emotion.record_shared(**settings)
     status_update(config, reset=True, key=EMOTION_SYNC_KEY, time=datetime.now().replace(microsecond=0),
-                  fleets=synced)
+                  fleets=synced, reversed=reversed_)
     return True
 
 

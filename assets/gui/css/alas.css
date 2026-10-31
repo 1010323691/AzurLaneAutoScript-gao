@@ -577,6 +577,11 @@ pre.rich-traceback-code {
     margin-left: .75rem;
 }
 
+.sortie-note.sortie-warn {
+    color: #e5534b;
+    font-size: .875rem;
+}
+
 [id^="pywebio-scope-overview-task_"] {
     display: grid;
     grid-auto-flow: column;
