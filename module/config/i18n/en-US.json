@@ -552,7 +552,7 @@
     },
     "Mode": {
       "name": "When A Task Gets Stuck",
-      "help": "Applies when clicks have no effect, the game stays on one screen too long, or in-game requirements (level, progress, stage stats, fleet setup) are not met\nRestart Game: restart the game and retry this task, stop Alas if requirements are not met (original behavior)\nSkip Task: delay this task, go back to main page and continue with other tasks, restart game if unable to go back, suitable for low level accounts",
+      "help": "Applies when clicks have no effect, the game stays on one screen too long, or in-game requirements (level, progress, stage stats, fleet setup) are not met\nRestart Game: restart the game and retry this task, stop Alas if requirements are not met (original behavior)\nSkip Task: when stuck, go back to main page (restart game if unable to) and retry this task, delay it and continue with other tasks only after getting stuck 3 times in a row, delay at once if requirements are not met, suitable for low level accounts",
       "restart": "Restart Game",
       "skip_task": "Skip Task"
     },

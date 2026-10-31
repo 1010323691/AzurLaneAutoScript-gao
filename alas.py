@@ -17,6 +17,8 @@ from module.notify import handle_notify
 
 class AzurLaneAutoScript:
     stop_event: threading.Event = None
+    # Restart.StuckHandle.Mode=skip_task, times to retry a stuck task before delaying it
+    STUCK_RETRY_LIMIT = 2
 
     def __init__(self, config_name='alas'):
         logger.hr('Start', level=0)
@@ -26,6 +28,9 @@ class AzurLaneAutoScript:
         # Failure count of tasks
         # Key: str, task name, value: int, failure count
         self.failure_record = {}
+        # Consecutive stuck retries of tasks, reset when task finished
+        # Key: str, command, value: int, retry count
+        self.stuck_retry_record = {}
 
     @cached_property
     def config(self):
@@ -67,8 +72,10 @@ class AzurLaneAutoScript:
             if not skip_first_screenshot:
                 self.device.screenshot()
             self.__getattribute__(command)()
+            self.stuck_retry_record.pop(command, None)
             return True
         except TaskEnd:
+            self.stuck_retry_record.pop(command, None)
             return True
         except GameNotRunningError as e:
             logger.warning(e)
@@ -159,6 +166,19 @@ class AzurLaneAutoScript:
         # Errors from goto_main or Restart itself are not skippable
         if task == 'Restart' or inflection.underscore(task) != command:
             return False
+
+        # Stuck may be random, like a misread screen, retry with a clean game state before delaying,
+        # otherwise campaign tasks stop until the next day.
+        # Requirements won't change by retrying.
+        if not requirement:
+            retried = self.stuck_retry_record.get(command, 0)
+            if retried < self.STUCK_RETRY_LIMIT:
+                self.stuck_retry_record[command] = retried + 1
+                logger.warning(f'Task `{task}` cannot continue ({reason}), '
+                               f'retry it ({retried + 1}/{self.STUCK_RETRY_LIMIT}, Restart.StuckHandle.Mode=skip_task)')
+                self.stuck_skip_cleanup()
+                return True
+        self.stuck_retry_record.pop(command, None)
 
         logger.warning(f'Task `{task}` cannot continue ({reason}), skip it (Restart.StuckHandle.Mode=skip_task)')
         minute = None
