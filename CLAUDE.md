@@ -48,11 +48,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 只有一支舰队或第一次切换失败时退回原来的重试；切回失败会再试一次，仍失败就警告并退回原重试，不动镜头。
   12. **潜艇移动点不动时放弃移动**：打 Boss 前 `submarine_move_near_boss()` 把潜艇移到 Boss 附近，`_submarine_goto()` 每 2 秒没到达就重点一次，上游没有次数上限，点到 `GameTooManyClickError`。日服 5-4 曾从 G3 移到 G2 连点 13 次无反应（当时潜艇弹药 0/7，G2 被潜艇自己的模型盖住；重进后同样的移动一次成功，确切原因未定）。
      - 现在重点 `Fleet.SUBMARINE_MOVE_RETRY`（3）次仍没到达就返回 False，`submarine_goto()` 随之取消潜艇移动，照常去打 Boss，只是潜艇可能不在支援范围内。
-  13. **总览页「出击状态」面板**：日志区上方，每个开着的、带 `Campaign` 和 `Emotion` 分组的任务（主线、活动等）一行。内容包括：关卡、第几战、两队游戏舰队编号与职能、谁在出击、两队推算心情（带「心情控制」下限刻度），以及等待原因和时间：图内等心情、心情不够推迟到几点、战败重试、下次出击。
-     - 数据：心情、关卡、舰队、NextRun 由 GUI 从 `config/alas.json` 读取并计算（`module/campaign/sortie_status.py` 的 `build_rows`，心情公式 `emotion_current` 与 `FleetEmotion.update` 共用）。运行时状态由 Alas 进程写进 `log/status/<config_name>.json`，按任务名分键，包括自动互换后的实际职能、出击中的舰队、第几战、推迟原因。
+  13. **总览页「出击状态」面板**：在日志区上方。开着的、带 `Campaign` 和 `Emotion` 分组的任务（主线、活动等）按游戏舰队编号分组，用同一组舰队的任务合成一块：每个任务一行显示关卡、第几战和等待原因及时间（图内等心情、心情不够推迟到几点、战败重试、下次出击）；每队只显示一次，内容是游戏舰队编号、职能、谁在出击、心情（带「心情控制」下限刻度）和恢复速度。
+     - 数据：心情、关卡、舰队、NextRun 由 GUI 从 `config/alas.json` 读取并计算（`module/campaign/sortie_status.py` 的 `build_groups`，心情公式 `emotion_current` 与 `FleetEmotion.update` 共用）。运行时状态由 Alas 进程写进 `log/status/<config_name>.json`，按任务名分键，包括自动互换后的实际职能、出击中的舰队、第几战、推迟原因。
      - 写入点：`CampaignBase.sortie_status_map_entered`（进图后）、`Emotion.reduce` / `wait` / `check_reduce`、`handle_low_emotion_withdraw`、`handle_campaign_defeat`、`CampaignEnd`。写失败只记 warning，面板渲染异常只记日志，都不影响推图和总览刷新。
      - 推迟原因只有在 NextRun 与记录的时间相差 1 分钟以内时才显示，被用户或别的逻辑改过 NextRun 就退回「下次出击」。
-     - 心情只是推算值。不同任务用了同一个游戏舰队编号时，面板会提示「共用，心情分开推算，可能偏高」：主线、活动各记各的心情。
+     - **心情按游戏舰队编号共用**：心情是游戏舰队的属性，所有带 `Emotion` 和 `Fleet` 分组的任务中，`Fleet.Fleet{1,2}` 编号相同的槽位共用一份心情。`FleetEmotion.value / record` 取这些槽位里 `Record` 最新的一份（`latest_emotion`）；`Emotion.record()` 通过 `record_shared()` 用 `cross_set` 同时写进其他任务。`Recover / Oath / Control` 仍是各任务自己的设置。
+  14. **心情不够回港等待前，先去寮舍同步真实心情**（`module/combat/emotion_sync.py`）：
+     - 触发：`CampaignRun.run()` 捕获 `ScriptEnd('Emotion control')`（来源是进图前 `check_reduce` 或低心情弹窗撤退）后调用 `emotion_sync_retry()`。条件是本次任务还没同步过、日服、任务名以 `Main` 或 `Event` 开头（GemsFarming 用的不是寮舍里的舰队）、心情模式为计算。同步成功就 `task_delay(minute=0)` 撤销推迟，回到循环开头重新 `check_reduce`：够了直接出击；还不够再抛一次 `ScriptEnd`，这时已同步过，直接按真实值推迟。
+     - 流程：`page_dorm` → `DORM_TRAINING_ENTER`（左下角「訓練 6/6」）→ 弹窗的「訓練」「休憩」两个标签页（选中的标签模板能匹配上，未选中的颜色是反的）→ 每页 6 张卡，读最后两行コンディション和回復速度（`ButtonGrid` 间距 170）→ 关闭弹窗。每页取心情最低的船。
+     - 对应：按用户配置里的基础职能（`cross_get` 读原始 `Fleet.FleetOrder`，去掉 `_auto_swap`，不受本次互换影响），「訓練」页 = Boss 队，「休憩」页 = 道中队。「全部 / 待机」职能不同步。
+     - 写入：`Value` = 最低心情，`Record` = 现在。恢复速度换算成 `Recover / Oath`（20 不在寮舍、30 不在寮舍 + 誓约、40 一层、50 二层、60 二层 + 誓约），不在表里的速度保留原设置。写到所有共用该游戏舰队的任务（`emotion_apply`），结果写进状态文件的 `_EmotionSync` 键，面板显示同步时间。写入用 `emotion.config`：`CampaignRun.campaign.config` 是深拷贝，`Emotion` 读的是它。
+     - 坑：`Ocr` 在构造时按当时的服务器选模型。国服模型会把 `40/h` 读成 `4/`，所以 OCR 对象在 `ocr_ships()` 里现建，不放在模块级。`h` 不在日服模型字符表里，读 `0123456789/`，取 `/` 前面的数字。卡片有入场动画，切页后等 1 秒，并要求连续两次结果一致。
+     - 只统计寮舍里的船；舰队里不在寮舍的船看不到。素材只有日服截图（cn 目录放的也是日服图）。2026-10-31 在真机上跑通过读取流程（读数和画面一致）；「心情不够 → 同步 → 出击 / 推迟」的完整流程还没在真机上自然触发过。
      - `sortie_status.py` 会被 GUI 进程导入（假 PIL），只能依赖标准库和 `module.logger`。不要和已有的 `module/campaign/campaign_status.py`（OCR 读石油、物资）混淆。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
@@ -95,7 +102,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.ocr.test_numpy_ocr
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.ocr.test_numpy_ocr
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
