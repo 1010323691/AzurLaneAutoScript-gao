@@ -215,6 +215,9 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         """
         if not self.low_emotion_withdraw or self.emotion.is_ignore:
             return super().handle_combat_low_emotion()
+        if self._story_popup_expected:
+            # Popup to confirm story skip has the same buttons, leave it to handle_story_skip()
+            return False
         if max(fleet.limit for fleet in self._low_emotion_fleets) < self.LOW_EMOTION_POPUP_VALUE:
             # Emotion control is prevent_red_face, fighting with low emotion is allowed.
             # Popup when entering map doesn't tell which fleet is low, all fleets have to allow it.
@@ -227,6 +230,16 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
             return False
         self.handle_low_emotion_withdraw()
         return True
+
+    @property
+    def _story_popup_expected(self):
+        """
+        Returns:
+            bool: If STORY_SKIP was just clicked and story_skip() is waiting for its confirm popup.
+        """
+        # Don't call reached(), it counts as an access of story_skip()
+        timer = self.story_popup_timeout
+        return timer.started() and timer.current_time() <= timer.limit
 
     @property
     def _low_emotion_fleets(self):

@@ -2,6 +2,7 @@
 import unittest
 from datetime import datetime
 
+from module.base.timer import Timer
 from module.campaign.campaign_base import CampaignBase
 from module.combat.emotion import Emotion
 from module.exception import CampaignEnd, ScriptEnd
@@ -185,6 +186,32 @@ class TestLowEmotionWithdraw(unittest.TestCase):
             campaign.handle_combat_low_emotion()
         self.assertEqual(campaign.popup_clicked, ['cancel IGNORE_LOW_EMOTION'])
         self.assertTrue(campaign.cancelled)
+
+    def test_story_skip_popup_not_low_emotion(self):
+        # Real case: STORY_SKIP clicked before boss battle, its confirm popup was cancelled as low emotion,
+        # then emotion withdraw waited on battle status until GameStuckError
+        campaign = make()
+        campaign.story_popup_timeout = Timer(10).start()
+        self.assertFalse(campaign.handle_combat_low_emotion())
+        self.assertEqual(campaign.popup_clicked, [])
+        self.assertFalse(campaign.withdrawn)
+        self.assertEqual(campaign.config.delays, [])
+
+    def test_low_emotion_after_story_popup_timeout(self):
+        campaign = make()
+        campaign.story_popup_timeout = Timer(10).start()
+        campaign.story_popup_timeout._start -= 11
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertEqual(campaign.popup_clicked, ['cancel IGNORE_LOW_EMOTION'])
+        self.assertTrue(campaign.withdrawn)
+
+    def test_story_popup_check_has_no_side_effect(self):
+        campaign = make()
+        timer = Timer(10, count=20).start()
+        campaign.story_popup_timeout = timer
+        self.assertTrue(campaign._story_popup_expected)
+        self.assertEqual(timer._access, 0)
 
     def test_not_running_campaign_keeps_default(self):
         # Coalition and daemon inherit CampaignBase but don't run it, they don't catch ScriptEnd
