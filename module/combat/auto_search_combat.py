@@ -222,6 +222,7 @@ class AutoSearchCombat(MapOperation, Combat, CampaignStatus):
         self.combat_defeated = False
         self.battle_status_defeated = False
         self.battle_status_won = False
+        self.battle_status_grade = None
         for _ in self.loop():
 
             if self.handle_combat_automation_confirm():

@@ -255,8 +255,40 @@ class TestBattleStatusAfterWon(unittest.TestCase):
     def test_combat_status_resets(self):
         combat = FakeCombatStatusBattle(['in_map'])
         combat.battle_status_won = True
+        combat.battle_status_grade = 'S'
         combat.combat_status(expected_end='no_searching')
         self.assertFalse(combat.battle_status_won)
+        self.assertIsNone(combat.battle_status_grade)
+
+
+class TestExpInfoGrade(unittest.TestCase):
+    def exp_info(self, combat, *names):
+        combat.appearing = set(names)
+        return combat.handle_exp_info()
+
+    def test_get_ship_misread_as_exp_info_b(self):
+        # Real case: JP, BATTLE_STATUS_S clicked, then GET_SHIP animation matched EXP_INFO_B.
+        # exp_info=True disabled handle_get_ship() and combat status stuck on the new ship screen.
+        combat = FakeBattleStatus()
+        self.assertTrue(combat.battle('BATTLE_STATUS_S'))
+        self.assertEqual(combat.battle_status_grade, 'S')
+        self.assertFalse(self.exp_info(combat, 'EXP_INFO_B', 'GET_SHIP'))
+        self.assertFalse(self.exp_info(combat, 'EXP_INFO_A'))
+        self.assertTrue(self.exp_info(combat, 'EXP_INFO_S'))
+        self.assertEqual(combat.device.clicked, ['BATTLE_STATUS_S', 'EXP_INFO_S'])
+
+    def test_grade_a_and_b(self):
+        for grade in ['A', 'B']:
+            combat = FakeBattleStatus()
+            self.assertTrue(combat.battle(f'BATTLE_STATUS_{grade}'))
+            self.assertFalse(self.exp_info(combat, 'EXP_INFO_S'))
+            self.assertTrue(self.exp_info(combat, f'EXP_INFO_{grade}'))
+
+    def test_unknown_grade_accepts_all(self):
+        # Battle status not seen, such as the white screen bug in game
+        for grade in ['S', 'A', 'B']:
+            combat = FakeBattleStatus()
+            self.assertTrue(self.exp_info(combat, f'EXP_INFO_{grade}'))
 
 
 class TestCombatStatusDefeat(unittest.TestCase):

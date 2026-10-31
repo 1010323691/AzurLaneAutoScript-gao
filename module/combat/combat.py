@@ -27,6 +27,8 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
     battle_status_defeated = False
     # Battle status S, A or B appeared, set in handle_battle_status()
     battle_status_won = False
+    # Grade of the won battle, 'S', 'A' or 'B', exp info has the same grade
+    battle_status_grade = None
     # expected_end of combats in map, see combat_status()
     MAP_EXPECTED_END = (None, 'with_searching', 'no_searching', 'in_stage')
     # Seconds staying in map after battle, when expecting in_stage
@@ -253,6 +255,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         self.device.click_record_clear()
         # A new battle, daemon calls handle_battle_status() without combat_status()
         self.battle_status_won = False
+        self.battle_status_grade = None
         skip_first_screenshot = True
         interval_set = False
 
@@ -385,6 +388,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         """
         logger.info('Combat execute')
         self.battle_status_won = False
+        self.battle_status_grade = None
         self.submarine_call_reset()
         self.combat_auto_reset()
         self.combat_manual_reset()
@@ -445,6 +449,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
+            self.battle_status_grade = 'S'
             self.device.click(BATTLE_STATUS_S)
             return True
         if self.appear(BATTLE_STATUS_A, interval=self.battle_status_click_interval):
@@ -454,6 +459,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
+            self.battle_status_grade = 'A'
             self.device.click(BATTLE_STATUS_A)
             return True
         if self.appear(BATTLE_STATUS_B, interval=self.battle_status_click_interval):
@@ -463,6 +469,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
             else:
                 self.device.sleep((0.25, 0.5))
             self.battle_status_won = True
+            self.battle_status_grade = 'B'
             self.device.click(BATTLE_STATUS_B)
             return True
         # BATTLE_STATUS_C and BATTLE_STATUS_D are color checks of a grey strip,
@@ -534,15 +541,14 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         """
         if self.is_combat_executing():
             return False
-        if self.appear_then_click(EXP_INFO_S):
-            self.device.sleep((0.25, 0.5))
-            return True
-        if self.appear_then_click(EXP_INFO_A):
-            self.device.sleep((0.25, 0.5))
-            return True
-        if self.appear_then_click(EXP_INFO_B):
-            self.device.sleep((0.25, 0.5))
-            return True
+        for grade, button in [('S', EXP_INFO_S), ('A', EXP_INFO_A), ('B', EXP_INFO_B)]:
+            # EXP_INFO_* are color checks, EXP_INFO_B may match GET_SHIP animation of an S battle.
+            # Exp info has the same grade as battle status, if battle status is known.
+            if self.battle_status_grade and grade != self.battle_status_grade:
+                continue
+            if self.appear_then_click(button):
+                self.device.sleep((0.25, 0.5))
+                return True
 
         return False
 
@@ -638,6 +644,7 @@ class Combat(Level, HPBalancer, Retirement, SubmarineCall, CombatAuto, CombatMan
         self.combat_defeated = False
         self.battle_status_defeated = False
         self.battle_status_won = False
+        self.battle_status_grade = None
         in_map_timer = Timer(self.IN_STAGE_MISSING_SECOND, count=self.IN_STAGE_MISSING_SECOND * 2)
         for _ in self.loop():
 
