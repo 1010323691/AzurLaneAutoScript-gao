@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta
+
 from module.base.decorator import Config, cached_property
+from module.campaign.sortie_status import status_update
 from module.campaign.campaign_ui import CampaignUI
 from module.combat.assets import BATTLE_PREPARATION
 from module.combat.auto_search_combat import AutoSearchCombat
@@ -140,6 +143,7 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         self.ENTRANCE.area = self.ENTRANCE.button
         self.enter_map(self.ENTRANCE, mode=self.config.Campaign_Mode)
         self.low_emotion_in_map = True
+        self.sortie_status_map_entered()
 
         # Map init
         if not self.map_is_auto_search:
@@ -162,6 +166,7 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
                 self.handle_campaign_defeat()
             except CampaignEnd:
                 logger.hr('Campaign end')
+                status_update(self.config, state='end')
                 return True
 
         # Exception
@@ -174,6 +179,19 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
                 pass
         else:
             raise ScriptError('Battle function exhausted.')
+
+    def sortie_status_map_entered(self):
+        """
+        Show stage and fleet order of this sortie in GUI.
+        Fleet order may be swapped before fleet preparation, so it's recorded after entering map.
+        """
+        try:
+            status = dict(stage=self.config.Campaign_Name, order=self.config.Fleet_FleetOrder,
+                          battle_total=self._map_battle)
+        except Exception as e:
+            logger.warning(f'Failed to get sortie status: {e}')
+            status = {}
+        status_update(self.config, reset=True, state='map', battle=0, **status)
 
     def handle_campaign_defeat(self):
         """
@@ -198,6 +216,8 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
             except CampaignEnd:
                 pass
         self.config.task_delay(minute=self.DEFEAT_RETRY_MINUTE)
+        status_update(self.config, state='defeat',
+                      until=datetime.now().replace(microsecond=0) + timedelta(minutes=self.DEFEAT_RETRY_MINUTE))
         handle_notify(
             self.config.Error_OnePushConfig,
             title=f"Alas <{self.config.config_name}> campaign defeated",
@@ -313,6 +333,7 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         recovered = max(fleet.get_recovered(self.emotion.reduce_per_battle) for fleet in fleets)
         logger.info('Delay current task to prevent emotion control in the future')
         self.config.task_delay(target=recovered)
+        status_update(self.config, state='emotion_delay', until=recovered)
         raise ScriptEnd('Emotion control')
 
     def handle_clear_all_emotion(self):

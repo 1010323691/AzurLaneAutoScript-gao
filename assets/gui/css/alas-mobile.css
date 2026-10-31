@@ -60,3 +60,23 @@
 #pywebio-scope-log {
     overflow-y: auto;
 }
+
+#pywebio-scope-sortie_status {
+    max-height: 10rem;
+}
+
+.sortie-row {
+    margin: .125rem 0 .375rem;
+}
+
+.sortie-fleet {
+    margin-left: .25rem;
+}
+
+.sortie-name {
+    min-width: 4rem;
+}
+
+.sortie-role {
+    min-width: 2.5rem;
+}

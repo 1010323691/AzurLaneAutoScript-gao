@@ -5,27 +5,12 @@ import numpy as np
 
 from module.base.decorator import cached_property
 from module.base.utils import random_normal_distribution_int
+from module.campaign.sortie_status import (DIC_LIMIT, DIC_RECOVER_MAX, emotion_current, emotion_speed,
+                                           status_battle, status_update)
 from module.config.config import AzurLaneConfig
 from module.exception import ScriptEnd, ScriptError, RequestHumanTakeover
 from module.logger import logger
 
-DIC_LIMIT = {
-    'keep_exp_bonus': 120,
-    'prevent_green_face': 40,
-    'prevent_yellow_face': 30,
-    'prevent_red_face': 2,
-}
-DIC_RECOVER = {
-    'not_in_dormitory': 20,
-    'dormitory_floor_1': 40,
-    'dormitory_floor_2': 50,
-}
-DIC_RECOVER_MAX = {
-    'not_in_dormitory': 119,
-    'dormitory_floor_1': 150,
-    'dormitory_floor_2': 150,
-}
-OATH_RECOVER = 10
 # Swap mob fleet and boss fleet, used when Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap
 FLEET_ORDER_SWAP = {
     'fleet1_mob_fleet2_boss': 'fleet1_boss_fleet2_mob',
@@ -98,10 +83,7 @@ class FleetEmotion:
         Returns:
             int: Recover speed per 6 min.
         """
-        speed = DIC_RECOVER[self.recover]
-        if self.oath:
-            speed += OATH_RECOVER
-        return speed // 10
+        return emotion_speed(self.recover, self.oath)
 
     @property
     def limit(self):
@@ -120,9 +102,7 @@ class FleetEmotion:
         return DIC_RECOVER_MAX[self.recover]
 
     def update(self):
-        recover_count = int(int(datetime.now().timestamp()) // 360 - int(self.record.timestamp()) // 360)
-        recover_count = max(recover_count, 0)
-        self.current = min(max(self.value, 0) + self.speed * recover_count, self.max)
+        self.current = emotion_current(self.value, self.record, self.speed, self.max)
 
     def get_recovered(self, expected_reduce=0):
         """
@@ -266,6 +246,7 @@ class Emotion:
         if recovered > datetime.now():
             logger.info('Delay current task to prevent emotion control in the future')
             self.config.task_delay(target=recovered)
+            status_update(self.config, state='emotion_delay', until=recovered)
             raise ScriptEnd('Emotion control')
 
     def check_swap(self, battle):
@@ -331,6 +312,7 @@ class Emotion:
         if recovered > datetime.now():
             logger.hr('Emotion wait')
             logger.info(f'Emotion of fleet {fleet_index} will recover to {fleet.limit} at {recovered}')
+            status_update(self.config, state='emotion_wait', fleet=fleet_index, until=recovered)
 
             while 1:
                 if datetime.now() > recovered:
@@ -356,6 +338,7 @@ class Emotion:
         self.total_reduced += self.reduce_per_battle
         self.record()
         self.show()
+        status_battle(self.config, fleet_index)
 
     @cached_property
     def bug_threshold(self):
