@@ -379,7 +379,8 @@ def build_groups(config_data, status, running_task=None, now=None):
         now (datetime):
 
     Returns:
-        list[dict]: Groups of `tasks` (rows of build_rows()), `fleets` and `synced` time of dorm emotion sync.
+        list[dict]: Groups of `tasks` (rows of build_rows()), `fleets`, `synced` time of dorm emotion sync,
+            and `reversed` if dorm floors of mob fleet and boss fleet may be reversed.
     """
     rows = build_rows(config_data, status, running_task=running_task, now=now)
     sync = status.get(EMOTION_SYNC_KEY, {})
@@ -396,7 +397,8 @@ def build_groups(config_data, status, running_task=None, now=None):
             if group['numbers'] == numbers:
                 break
         else:
-            group = {'numbers': numbers, 'tasks': [], 'fleets': row['fleets'], 'synced': None}
+            group = {'numbers': numbers, 'tasks': [], 'fleets': row['fleets'], 'synced': None,
+                     'reversed': False}
             groups.append(group)
         group['tasks'].append(row)
         # Fleet roles and the fighting fleet of the running task
@@ -405,6 +407,7 @@ def build_groups(config_data, status, running_task=None, now=None):
     for group in groups:
         if any(str(number) in synced_fleets for number in group['numbers']):
             group['synced'] = _to_datetime(sync.get('time'))
+            group['reversed'] = sync.get('reversed') is True
     return groups
 
 

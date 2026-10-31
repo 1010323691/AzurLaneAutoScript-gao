@@ -10,7 +10,7 @@ from unittest.mock import patch
 import module.campaign.sortie_status as sortie_status
 from module.campaign.run import CampaignRun
 from module.combat.emotion import Emotion
-from module.combat.emotion_sync import EmotionSync, emotion_apply, fleet_lowest, parse_ships
+from module.combat.emotion_sync import EmotionSync, dorm_floor_reversed, emotion_apply, fleet_lowest, parse_ships
 from module.config.config import AzurLaneConfig
 from module.config.utils import filepath_config, read_file
 from module.exception import ScriptEnd
@@ -29,6 +29,14 @@ class TestParse(unittest.TestCase):
         self.assertIsNone(fleet_lowest([]))
         # Digits dropped without `/` are not accepted
         self.assertEqual(parse_ships([58], ['40']), [])
+
+    def test_dorm_floor_reversed(self):
+        # Real case: boss fleet in training is lower than mob fleet in rest
+        self.assertTrue(dorm_floor_reversed({'training': (41, 40), 'rest': (150, 50)}))
+        self.assertFalse(dorm_floor_reversed({'training': (150, 40), 'rest': (41, 50)}))
+        self.assertFalse(dorm_floor_reversed({'training': (80, 40), 'rest': (80, 50)}))
+        self.assertFalse(dorm_floor_reversed({'training': (41, 40), 'rest': None}))
+        self.assertFalse(dorm_floor_reversed({}))
 
 
 class ConfigTestBase(unittest.TestCase):
@@ -78,6 +86,13 @@ class TestEmotionApply(ConfigTestBase):
         status = sortie_status.status_read(self.name)[sortie_status.EMOTION_SYNC_KEY]
         self.assertEqual(status['fleets']['1'], {'value': 44, 'speed': 50, 'tab': 'rest'})
         self.assertEqual(status['fleets']['2'], {'value': 33, 'speed': 40, 'tab': 'training'})
+        # Boss fleet lower than mob fleet
+        self.assertTrue(status['reversed'])
+
+    def test_not_reversed(self):
+        self.assertTrue(emotion_apply(Emotion(self.config('Main')), {'training': (120, 40), 'rest': (60, 50)}))
+        status = sortie_status.status_read(self.name)[sortie_status.EMOTION_SYNC_KEY]
+        self.assertFalse(status['reversed'])
 
     def test_order_of_user_config(self):
         # Fleet order swapped in this sortie, dorm tabs follow the fleet order in user config

@@ -198,8 +198,14 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(group['fleets'][0]['value'], 52)
         self.assertEqual([f['speed'] for f in group['fleets']], [40, 20])
         self.assertEqual(group['synced'], datetime(2026, 10, 31, 17, 30))
+        self.assertFalse(group['reversed'])
         self.assertEqual([f['number'] for f in groups[1]['fleets']], [3])
         self.assertIsNone(groups[1]['synced'])
+        # Dorm floors reversed, shown on synced group only
+        status['_EmotionSync']['reversed'] = True
+        groups = build_groups(data, status, running_task='Event', now=NOW)
+        self.assertTrue(groups[0]['reversed'])
+        self.assertFalse(groups[1]['reversed'])
 
     def test_latest_emotion(self):
         data = {'Main': task_data(value1=52), 'Event': task_data(value1=99), 'Hard': {'Fleet': {'Fleet1': 1}},

@@ -764,6 +764,9 @@ class AlasGUI(Frame):
         if group["synced"] is not None:
             text = t("Gui.Overview.Synced", time=format_time(group["synced"], now=now))
             lines.append(f'<div class="sortie-note">{e(text)}</div>')
+        if group["reversed"]:
+            text = t("Gui.Overview.DormReversed")
+            lines.append(f'<div class="sortie-note sortie-warn">{e(text)}</div>')
         running = " sortie-running" if any(row["running"] for row in group["tasks"]) else ""
         return f'<div class="sortie-row{running}">{"".join(lines)}</div>'
 

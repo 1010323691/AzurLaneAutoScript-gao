@@ -3078,6 +3078,7 @@
       "AutoSwap": "Auto swap",
       "RecoverSpeed": "+{speed}/h",
       "Synced": "Real emotion synced from dorm at {time} (ships in dorm only)",
+      "DormReversed": "Dorm floors may be reversed: boss fleet has lower emotion than mob fleet. Put boss fleet on floor 1 (training) and mob fleet on floor 2 (rest)",
       "NoEmotion": "Emotion calculation off"
     },
     "AddAlas": {
