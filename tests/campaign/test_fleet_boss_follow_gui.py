@@ -4,6 +4,7 @@ import importlib
 import json
 import os
 import unittest
+from unittest.mock import patch
 
 from module.campaign.run import CampaignRun
 from module.config.config import AzurLaneConfig
@@ -61,6 +62,16 @@ class TestFleetBossFollowGui(unittest.TestCase):
         self.assertEqual(self.load('campaign_4_1', Fleet_Fleet2=0).FLEET_BOSS, 1)
         config = self.load('campaign_4_1', Fleet_FleetOrder='fleet1_all_fleet2_standby')
         self.assertEqual(config.FLEET_BOSS, 1)
+
+    def test_load_campaign_calls_it(self):
+        # Through the real call site, Campaign class replaced to skip device
+        run = CampaignRun.__new__(CampaignRun)
+        run.config = AzurLaneConfig(self.name, task='Main')
+        run.device = None
+        module = importlib.import_module('.campaign_5_1', 'campaign.campaign_main')
+        with patch.object(module, 'Campaign', lambda config, device: config):
+            self.assertTrue(run.load_campaign('campaign_5_1'))
+        self.assertEqual(run.campaign.FLEET_BOSS, 2)
 
     def test_other_map_files_unchanged(self):
         # FLEET_BOSS = 2 in map file
