@@ -187,7 +187,9 @@ class TestBuildRows(unittest.TestCase):
         data['Main2']['Fleet']['Fleet1'] = 3
         data['Event']['Emotion']['Fleet1Record'] = '2026-10-31 17:00:00'
         status = {'Event': {'state': 'battle', 'order': 'fleet1_boss_fleet2_mob', 'fleet': 1},
-                  '_EmotionSync': {'time': '2026-10-31 17:30:00', 'fleets': {'1': {'value': 52, 'speed': 40}}}}
+                  '_EmotionSync': {'time': '2026-10-31 17:30:00', 'fleets': {
+                      '1': {'value': 52, 'speed': 40, 'tab': 'training'},
+                      '2': {'value': 80, 'speed': 50, 'tab': 'rest'}}}}
         groups = build_groups(data, status, running_task='Event', now=NOW)
         self.assertEqual(len(groups), 2)
         group = groups[0]
@@ -206,6 +208,14 @@ class TestBuildRows(unittest.TestCase):
         groups = build_groups(data, status, running_task='Event', now=NOW)
         self.assertTrue(groups[0]['reversed'])
         self.assertFalse(groups[1]['reversed'])
+        # Group sharing only one of the synced fleets
+        data['Main2']['Fleet']['Fleet1'] = 1
+        groups = build_groups(data, status, running_task='Event', now=NOW)
+        self.assertEqual(groups[1]['numbers'], [1])
+        self.assertFalse(groups[1]['reversed'])
+        # No sync time to date the warning
+        status['_EmotionSync']['time'] = 'broken'
+        self.assertFalse(build_groups(data, status, now=NOW)[0]['reversed'])
 
     def test_latest_emotion(self):
         data = {'Main': task_data(value1=52), 'Event': task_data(value1=99), 'Hard': {'Fleet': {'Fleet1': 1}},

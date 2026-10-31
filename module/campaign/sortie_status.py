@@ -407,7 +407,9 @@ def build_groups(config_data, status, running_task=None, now=None):
     for group in groups:
         if any(str(number) in synced_fleets for number in group['numbers']):
             group['synced'] = _to_datetime(sync.get('time'))
-            group['reversed'] = sync.get('reversed') is True
+            # Both dorm tabs are fleets of this group
+            tabs = [synced_fleets.get(str(number), {}).get('tab') for number in group['numbers']]
+            group['reversed'] = group['synced'] is not None and sync.get('reversed') is True                 and 'training' in tabs and 'rest' in tabs
     return groups
 
 
