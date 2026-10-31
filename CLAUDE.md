@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   2. **舰队职能新增选项** `Fleet.FleetOrder = fleet1_mob_fleet2_boss_auto_swap`：每次出击前，按心情自动互换道中队和 Boss 队。
      - 伪值在 `AzurLaneConfig.bind()` 里解析为具体职能，同时设置 `config.FLEET_ORDER_AUTO_SWAP=True`。
      - 互换逻辑在 `module/combat/emotion.py` 的 `Emotion.check_reduce()`。
-     - 全清模式（`MAP_CLEAR_ALL_THIS_TIME`，刷三星时）要打完地图上全部敌人，但这个标志在进图时的 `map_get_info()` 才确定，晚于出击前的心情检查。所以 `enter_map` 在点关卡准备之前调用 `CampaignBase.handle_clear_all_emotion()`，按 `_map_battle_clear_all`（`spawn_data` 里全部敌人数，`FLEET_BOSS = 1` 时再加 1）用 `Emotion.check_swap()`（内部调 `Emotion.check_reduce(delay=False)`，避开 `GemsEmotion` 的覆盖）重新判断换队；两种职能都不够时保持原职能，不推迟任务，进图后照常等心情。
+     - 全清模式（`MAP_CLEAR_ALL_THIS_TIME`，刷三星时）要打完地图上全部敌人，但这个标志在进图时的 `map_get_info()` 才确定，晚于出击前的心情检查。所以 `enter_map` 在点关卡准备之前调用 `CampaignBase.handle_clear_all_emotion()`，按 `_map_battle_clear_all`（`spawn_data` 里全部敌人数，`FLEET_BOSS = 1` 即道中队也打 Boss 时再加 1）用 `Emotion.check_swap()`（内部调 `Emotion.check_reduce(delay=False)`，避开 `GemsEmotion` 的覆盖）重新判断换队；两种职能都不够时保持原职能，不推迟任务，进图后照常等心情。
   3. **自律设置侧边栏兼容 2 个标签**：没解锁指挥喵的账号，侧边栏只有「编队 / 自律设置」两个标签，见 `module/handler/auto_search.py` 的 `fleet_preparation_sidebar_ensure()`。
   4. 地图内等待心情改用 `fleet_show_index`（`module/map/map.py`）：心情是按出击槽位记录的，反转职能时 `fleet_current_index` 是角色编号，会查错舰队。
   5. **委托条件不满足时跳过**（`module/commission/commission.py`）：点过「推荐」后，限制条件行如果仍有红色 ✗（`_commission_requirement_unmet`），抛出 `CommissionRequirementNotMet`，设置 `comm_requirement_unmet`，然后**停止派遣其余委托**：这时意味着已经没有合格的空闲舰船，换别的委托也一样派不出去。任务结束后，`run()` 把下次运行推迟到最早一个进行中委托完成的时间，也就是舰船回来时；如果没有进行中的委托，就用 `FailureInterval`。红色检测目前只在日服截图上验证过。
@@ -39,6 +39,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 低心情弹窗没有专门素材，只认「确认 + 取消」的通用弹窗，剧情「确认跳过」框长得一样。`combat_preparation` 里低心情处理排在 `handle_story_skip` 前面，曾把 Boss 战前剧情的跳过确认框当成低心情、点取消并进入撤退循环；撤退循环不处理战斗结算，最后停在 S 结算页判定 `GameStuckError`。现在点过 `STORY_SKIP`、`story_popup_timeout` 还在 10 秒窗口内时（`_story_popup_expected`），低心情处理直接让给 `handle_story_skip`。
   9. **去打 Boss 途中被移动塞壬拦截时不再卡住**：有移动敌人的地图（`MAP_HAS_MOVABLE_ENEMY`），舰队走向 Boss 时可能被塞壬拦下。按 Boss 战算，`_expected_end` 会给出 `in_stage`，但打完后游戏回到地图，Boss 还在，上游会一直等到 `GameStuckError`。
      - 现在 `Combat.combat_status()` 等 `in_stage` 时，如果点过结算后画面在地图里停留了 `IN_STAGE_MISSING_SECOND`（5 秒），就结束等待，由 `Fleet` 的寻路循环重走一遍去打 Boss（舰队不在目标格时，走 `ambushed_retry` 分支）。真打完 Boss 后，约 2 秒就会回到关卡页，不会误判。
+  10. **主线 2～6 章按 GUI 舰队职能打 Boss**：这几章的地图脚本在 `Config` 里写死了 `FLEET_BOSS = 1`（2～5 章写在 `campaign_N_1.py`，同章其他图导入它；6 章每图各写），`load_campaign` 的 `merge()` 写进 `_fleet_boss` 后会覆盖 `Fleet.FleetOrder`，道中队打完全部战斗含 Boss，Boss 队不动，心情预算与自动互换也随之失真。
+     - 现在 `CampaignRun.fleet_boss_follow_gui()` 在合并地图 `Config` 后，若地图在 `campaign_main`、地图 `Config` 写的是 `FLEET_BOSS = 1`、GUI 配了第 2 舰队且职能是道中/Boss 分工，就把 `FLEET_BOSS` 置 0，回到按职能推算。`FLEET_BOSS` 是职能编号（2 表示有单独的 Boss 队），两种分工顺序都是 2，槽位反转由 `fleets_reversed` 处理。
+     - 活动图不改：2020 年几张活动图同时写了 `SUBMARINE = 0` 和 `FLEET_BOSS = 1`，`event_20240521_cn` 的 a1、c1 还在运行时设 `self.config.FLEET_BOSS = 1`（只能用 1 队）。上游写死的原因不明，2～6 章 Boss 队走到 Boss 只在单元测试层面验证过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -80,7 +83,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.ocr.test_numpy_ocr
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.ocr.test_numpy_ocr
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -345,7 +348,8 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | 反复点同一个关卡或页面，不进入下一步 | 点到了弹窗外，弹窗被关掉，回到上一页 | 确认坐标对应的 UI 元素真实存在。例如日服的编队侧边栏少一个标签（fork 已修） |
 | 推图不推进 | `MapAchievement=non_stop`；或关卡素材、OCR 识别失败 | `module/handler/fast_forward.py` 的 `triggered_map_stop` / `handle_map_stop` |
 | 自律寻敌时卡在红色 DEFEAT 提示页，任务被推迟到次日 | 战败提示页没被识别（fork 第 7 条已处理） | 错误现场截图；日志的 `Combat defeated, DEFEAT_TIPS` |
-| 推图打完一章就停了，任务显示完成 | Boss 战战败（日志有 `Battle Status D`、`Combat defeated`），任务被延迟。2~6 章地图脚本写死了 `FLEET_BOSS = 1`，由道中队带伤打 Boss | 错误现场截图；`campaign/campaign_main/campaign_N_1.py` 的 `Config`；fork 第 7 条 |
+| 推图打完一章就停了，任务显示完成 | Boss 战战败（日志有 `Battle Status D`、`Combat defeated`），任务被延迟。只配一支舰队或职能不是道中/Boss 分工时，2~6 章由道中队带伤打 Boss | 错误现场截图；`campaign/campaign_main/campaign_N_1.py` 的 `Config`；fork 第 7、10 条 |
+| 主线 2~6 章打 Boss 时没换到 Boss 队 | 地图脚本写死 `FLEET_BOSS = 1`（fork 第 10 条已处理；仍不换时看 GUI 是否配了第 2 舰队、职能是否为分工） | 日志的 `Map file sets FLEET_BOSS = 1, follow Fleet.FleetOrder` |
 | 出击任务被推迟到次日，错误现场是「コンディションが良くない」低心情确认框 | 推算心情比实际高（多个任务或手动游玩共用舰队）。fork 第 8 条后会撤退并推迟到心情恢复 | 日志的 `Low emotion popup, correct emotion`；各任务的 `Emotion.*` 与 `Fleet.Fleet1/2` |
 | 打 Boss 前有剧情，日志在 `STORY_SKIP` 之后紧跟 `POPUP_CANCEL_IGNORE_LOW_EMOTION`、`EMOTION WITHDRAW`，最后停在 S 结算页 `GameStuckError` | 剧情跳过确认框被误认成低心情弹窗（fork 第 8 条已处理） | `CampaignBase.handle_combat_low_emotion` 的 `_story_popup_expected` |
 | 打赢了却撤退，日志里 `BATTLE_STATUS_S` 之后出现 `Battle Status D`、`Combat defeated`，紧接着又是 `EXP_INFO_S` | 获得新船画面被误认成 D 结算（fork 第 7 条已处理） | 日志的 `GET_SHIP` 前后几行 |
