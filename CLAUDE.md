@@ -42,6 +42,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   10. **主线 2～6 章按 GUI 舰队职能打 Boss**：这几章的地图脚本在 `Config` 里写死了 `FLEET_BOSS = 1`（2～5 章写在 `campaign_N_1.py`，同章其他图导入它；6 章每图各写），`load_campaign` 的 `merge()` 写进 `_fleet_boss` 后会覆盖 `Fleet.FleetOrder`，道中队打完全部战斗含 Boss，Boss 队不动，心情预算与自动互换也随之失真。
      - 现在 `CampaignRun.fleet_boss_follow_gui()` 在合并地图 `Config` 后，若地图在 `campaign_main`、地图 `Config` 写的是 `FLEET_BOSS = 1`、GUI 配了第 2 舰队且职能是道中/Boss 分工，就把 `FLEET_BOSS` 置 0，回到按职能推算。`FLEET_BOSS` 是职能编号（2 表示有单独的 Boss 队），两种分工顺序都是 2，槽位反转由 `fleets_reversed` 处理。
      - 活动图不改：2020 年几张活动图同时写了 `SUBMARINE = 0` 和 `FLEET_BOSS = 1`，`event_20240521_cn` 的 a1、c1 还在运行时设 `self.config.FLEET_BOSS = 1`（只能用 1 队）。上游写死的原因不明，2～6 章 Boss 队走到 Boss 只在单元测试层面验证过。
+  11. **潜艇正下方的格子到达确认不再死循环**：`Fleet._goto()` 发现目标格正上方是潜艇（`may_submarine_icon`）时，不用 `predict_fleet()`，改用 `predict_current_fleet()` 找格子上方 2.5～3.5 格的绿色当前舰队箭头。地图已滚到最上面、目标格在靠上的行时（例：4-4 镜头 G3、目标 D3、潜艇 D2），箭头落在顶部状态栏后面，每 20 秒 `Walk timeout` 重试，永远确认不了。
+     - 现在走路超时、`may_submarine_icon` 且目标格认得出舰队（`predict_fleet()`）时，调 `Fleet.fleet_focus_by_switch()`：切到另一队再切回来，游戏会把镜头移到当前舰队身上，然后 `self.camera = location` 并 `update()`，下一轮箭头在画面中央附近，正常确认到达。只有一支舰队或切换失败时退回原来的重试。办法来自用户实测。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -83,7 +85,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.ocr.test_numpy_ocr
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.ocr.test_numpy_ocr
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -349,6 +351,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | 推图不推进 | `MapAchievement=non_stop`；或关卡素材、OCR 识别失败 | `module/handler/fast_forward.py` 的 `triggered_map_stop` / `handle_map_stop` |
 | 自律寻敌时卡在红色 DEFEAT 提示页，任务被推迟到次日 | 战败提示页没被识别（fork 第 7 条已处理） | 错误现场截图；日志的 `Combat defeated, DEFEAT_TIPS` |
 | 推图打完一章就停了，任务显示完成 | Boss 战战败（日志有 `Battle Status D`、`Combat defeated`），任务被延迟。只配一支舰队或职能不是道中/Boss 分工时，2~6 章由道中队带伤打 Boss | 错误现场截图；`campaign/campaign_main/campaign_N_1.py` 的 `Config`；fork 第 7、10 条 |
+| 舰队已经停在目标格，日志反复 `Arrive XX (may_submarine_icon, is_current_fleet)` 和 `Walk timeout. Retrying.` | 目标格上方是潜艇，当前舰队箭头被顶部界面挡住（fork 第 11 条已处理） | 日志的 `Current fleet arrow may be hidden, switch fleets` |
 | 主线 2~6 章打 Boss 时没换到 Boss 队 | 地图脚本写死 `FLEET_BOSS = 1`（fork 第 10 条已处理；仍不换时看 GUI 是否配了第 2 舰队、职能是否为分工） | 日志的 `Map file sets FLEET_BOSS = 1, follow Fleet.FleetOrder` |
 | 出击任务被推迟到次日，错误现场是「コンディションが良くない」低心情确认框 | 推算心情比实际高（多个任务或手动游玩共用舰队）。fork 第 8 条后会撤退并推迟到心情恢复 | 日志的 `Low emotion popup, correct emotion`；各任务的 `Emotion.*` 与 `Fleet.Fleet1/2` |
 | 打 Boss 前有剧情，日志在 `STORY_SKIP` 之后紧跟 `POPUP_CANCEL_IGNORE_LOW_EMOTION`、`EMOTION WITHDRAW`，最后停在 S 结算页 `GameStuckError` | 剧情跳过确认框被误认成低心情弹窗（fork 第 8 条已处理） | `CampaignBase.handle_combat_low_emotion` 的 `_story_popup_expected` |
