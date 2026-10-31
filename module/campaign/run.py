@@ -61,10 +61,33 @@ class CampaignRun(CampaignEvent):
             raise RequestHumanTakeover
 
         config = copy.deepcopy(self.config).merge(self.module.Config())
+        self.fleet_boss_follow_gui(config)
         device = self.device
         self.campaign = self.module.Campaign(config=config, device=device)
 
         return True
+
+    # Fleet.FleetOrder with a mob fleet and a boss fleet
+    FLEET_ORDER_MOB_BOSS = ['fleet1_mob_fleet2_boss', 'fleet1_boss_fleet2_mob']
+
+    def fleet_boss_follow_gui(self, config):
+        """
+        Map files of main chapter 2 to 6 set FLEET_BOSS = 1 in Config, mob fleet fights boss as well,
+        which overrides Fleet.FleetOrder. Follow Fleet.FleetOrder if it sets a mob fleet and a boss fleet.
+        Event maps are unchanged, some of them allow fleet_1 only.
+
+        Args:
+            config (AzurLaneConfig): Config merged with map Config.
+        """
+        if self.folder != 'campaign_main':
+            return
+        if getattr(self.module.Config, 'FLEET_BOSS', None) != 1:
+            return
+        if not config.Fleet_Fleet2 or config.Fleet_FleetOrder not in self.FLEET_ORDER_MOB_BOSS:
+            return
+        logger.info(f'Map file sets FLEET_BOSS = 1, follow Fleet.FleetOrder={config.Fleet_FleetOrder} instead')
+        # 0 to use FLEET_BOSS from Fleet.FleetOrder, also follows fleet order swapped by emotion later
+        config.FLEET_BOSS = 0
 
     def triggered_stop_condition(self, oil_check=True):
         """
