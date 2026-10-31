@@ -18,6 +18,7 @@ from module.notify import handle_notify
 class AzurLaneAutoScript:
     stop_event: threading.Event = None
     # Restart.StuckHandle.Mode=skip_task, times to retry a stuck task before delaying it
+    # Help text of Restart.StuckHandle.Mode in module/config/i18n says "3 times in a row", update it together
     STUCK_RETRY_LIMIT = 2
 
     def __init__(self, config_name='alas'):
