@@ -3078,6 +3078,7 @@
       "AutoSwap": "自动互换",
       "RecoverSpeed": "+{speed}/h",
       "Synced": "真实心情 {time} 从寮舍同步（只统计寮舍里的船）",
+      "DormReversed": "寮舍两层可能放反了：Boss 队心情比道中队低。请把 Boss 队放 1 层（训练），道中队放 2 层（休憩）",
       "NoEmotion": "未开启心情计算"
     },
     "AddAlas": {
