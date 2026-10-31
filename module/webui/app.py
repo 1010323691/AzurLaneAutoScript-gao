@@ -718,7 +718,7 @@ class AlasGUI(Frame):
             state_text = t("Gui.Overview.StateWaiting", time=time_str)
 
         task_name = t(f"Task.{row['task']}.name")
-        title = f'{task_name} {row["stage"].upper()}'
+        title = f'{task_name} {row["stage"]}'
         if row["auto_swap"]:
             title += f' · {t("Gui.Overview.AutoSwap")}'
         running = " sortie-head-running" if row["running"] else ""
@@ -737,7 +737,7 @@ class AlasGUI(Frame):
             role += f' · {t("Gui.Overview.Fighting")}'
         value = fleet["value"]
         if not calculate or value is None:
-            bar = f'<span class="sortie-value">{e(t("Gui.Overview.NoEmotion"))}</span>'
+            bar = f'<span class="sortie-novalue">{e(t("Gui.Overview.NoEmotion"))}</span>'
         else:
             width = min(round(100 * value / fleet["max"]), 100)
             limit = round(100 * fleet["limit"] / fleet["max"])

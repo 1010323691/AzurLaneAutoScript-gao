@@ -11,6 +11,7 @@ This module is imported by GUI process, don't import modules using PIL or cv2.
 """
 import json
 import os
+import re
 from datetime import datetime
 
 from module.logger import logger
@@ -289,6 +290,23 @@ def _task_state(status, is_running, next_run, now):
     return {'state': 'waiting', 'until': next_run}
 
 
+def stage_name(stage):
+    """
+    Campaign_Name is the map file name in Alas process, convert it back to the stage name.
+
+    Args:
+        stage (str): Such as `campaign_7_4`, `7-4`, `t5`
+
+    Returns:
+        str: Such as `7-4`, `T5`
+    """
+    stage = str(stage)
+    res = re.match(r'^campaign_(\d+)_(\d+)$', stage, re.IGNORECASE)
+    if res:
+        return f'{res.group(1)}-{res.group(2)}'
+    return stage.upper()
+
+
 def build_rows(config_data, status, running_task=None, now=None):
     """
     Args:
@@ -324,7 +342,7 @@ def build_rows(config_data, status, running_task=None, now=None):
             else data['Campaign'].get('Name', '')
         rows.append({
             'task': task,
-            'stage': str(stage),
+            'stage': stage_name(stage),
             'running': is_running,
             'auto_swap': auto_swap,
             'calculate': 'calculate' in str(data['Emotion'].get('Mode', '')),

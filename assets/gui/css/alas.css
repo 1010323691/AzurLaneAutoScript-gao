@@ -471,8 +471,7 @@ pre.rich-traceback-code {
     background-color: rgba(63, 136, 197, .08);
 }
 
-.sortie-head,
-.sortie-fleet {
+.sortie-head {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -497,20 +496,26 @@ pre.rich-traceback-code {
     color: #e5534b;
 }
 
+/* Fixed columns, so bars stay aligned when role text changes, e.g. Mob -> Mob · Fighting */
 .sortie-fleet {
+    display: grid;
+    /* Track sizes do not depend on content, columns are the same in every row */
+    grid-template-columns: minmax(3.5rem, 4.5rem) minmax(4.5rem, 7.5rem) minmax(2rem, 10rem) 4.5rem 3.5rem;
+    align-items: center;
+    gap: 0 .5rem;
     font-size: .875rem;
     margin-left: .75rem;
-    flex-wrap: nowrap;
 }
 
-.sortie-name {
-    flex: none;
-    min-width: 4.5rem;
-}
-
+.sortie-name,
 .sortie-role {
-    flex: none;
-    min-width: 4rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sortie-novalue {
+    grid-column: 3 / span 3;
 }
 
 .sortie-fighting .sortie-name,
@@ -521,10 +526,7 @@ pre.rich-traceback-code {
 
 .sortie-bar {
     position: relative;
-    display: inline-block;
-    flex: 1 1 4rem;
-    min-width: 3rem;
-    max-width: 10rem;
+    display: block;
     height: .5rem;
     border-radius: .25rem;
     background-color: rgba(127, 127, 127, .25);
@@ -555,13 +557,12 @@ pre.rich-traceback-code {
 }
 
 .sortie-value {
-    flex: none;
+    text-align: right;
     font-family: Menlo, consolas, DejaVu Sans Mono, Courier New, monospace;
     font-size: .8rem;
 }
 
 .sortie-speed {
-    flex: none;
     font-size: .75rem;
     color: #4caf50;
 }

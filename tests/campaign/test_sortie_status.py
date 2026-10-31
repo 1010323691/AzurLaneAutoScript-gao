@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import module.campaign.sortie_status as sortie_status
 from module.campaign.sortie_status import build_groups, build_rows, emotion_current, emotion_slots, format_time, \
-    latest_emotion, status_battle, status_read, status_update
+    latest_emotion, stage_name, status_battle, status_read, status_update
 from module.combat.emotion import FleetEmotion
 
 NOW = datetime(2026, 10, 31, 18, 0, 0)
@@ -201,6 +201,15 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(latest_emotion(data, 1), (99, datetime(2026, 10, 31, 18, 30)))
         self.assertEqual(latest_emotion(data, 1, exclude_task='Event')[0], 52)
         self.assertIsNone(latest_emotion(data, 5))
+
+    def test_stage_name(self):
+        # Real case: Campaign_Name is the map file name in Alas process
+        status = {'Main': {'state': 'battle', 'stage': 'campaign_7_4', 'battle': 1, 'battle_total': 6}}
+        row = build_rows({'Main': task_data()}, status, running_task='Main', now=NOW)[0]
+        self.assertEqual(row['stage'], '7-4')
+        self.assertEqual(stage_name('7-3'), '7-3')
+        self.assertEqual(stage_name('t5'), 'T5')
+        self.assertEqual(stage_name('campaign_10_1'), '10-1')
 
     def test_format_time(self):
         self.assertEqual(format_time(datetime(2026, 11, 1, 0, 5), now=NOW), '11-01 00:05')
