@@ -58,6 +58,8 @@ ROTATE_KEY_TO_RECOVER = {
 STATUS_FOLDER = './log/status'
 # Tasks that don't share emotion with other tasks using the same game fleet
 EMOTION_NOT_SHARED = ['GemsFarming']
+# Emotion record of a fleet not recorded by any task, same as the default in argument.yaml
+EMOTION_RECORD_UNKNOWN = datetime(2020, 1, 1, 0, 0, 0)
 # Status key of the last dorm emotion sync
 EMOTION_SYNC_KEY = '_EmotionSync'
 
@@ -277,6 +279,7 @@ def latest_emotion(config_data, number, exclude_task=None):
             among tasks using it. None if no task records it.
     """
     latest = None
+    votes = {}
     for task, slot in emotion_slots(config_data, number, exclude_task=exclude_task):
         emotion = config_data[task]['Emotion']
         record = _to_datetime(emotion.get(f'Fleet{slot}Record'))
@@ -285,7 +288,62 @@ def latest_emotion(config_data, number, exclude_task=None):
             continue
         if latest is None or record > latest[1]:
             latest = (value, record)
+            votes = {}
+        if record == latest[1]:
+            votes[value] = votes.get(value, 0) + 1
+    # Emotion is written into all slots of a game fleet at once, slots with the same record time
+    # but different values come from changing game fleets of slots, see emotion_follow_fleet().
+    # Take the value most slots have, the changed slots are the few.
+    if latest is not None and len(votes) > 1:
+        latest = (max(votes, key=lambda value: votes[value]), latest[1])
     return latest
+
+
+def emotion_follow_fleet(config_data, modified):
+    """
+    Emotion is saved in fleet slots (Emotion.Fleet{key}Value / Record) but belongs to the game fleet.
+    When the game fleet of a slot changes, such as swapping Fleet.Fleet1 and Fleet.Fleet2,
+    emotion of the new game fleet is copied into the slot. Otherwise the slot keeps the emotion of the
+    previous game fleet with the same record time as the real one, and may be taken as the latest.
+
+    Args:
+        config_data (dict): User config before modification
+        modified (dict): Key: path such as "Main.Fleet.Fleet1", value: value to set
+
+    Returns:
+        dict: Emotion values and records to set, same format as `modified`.
+            Record is reset to EMOTION_RECORD_UNKNOWN if no task records the new game fleet,
+            so it recovers to max as a new fleet does.
+    """
+    out = {}
+    snapshot = {}
+    for path, number in modified.items():
+        parts = path.split('.')
+        if len(parts) != 3 or parts[1] != 'Fleet':
+            continue
+        res = re.fullmatch(r'Fleet([123])', parts[2])
+        if not res:
+            continue
+        task, key = parts[0], int(res.group(1))
+        data = config_data.get(task)
+        if task in EMOTION_NOT_SHARED or not isinstance(data, dict):
+            continue
+        if not isinstance(data.get('Emotion'), dict) or not isinstance(data.get('Fleet'), dict):
+            continue
+        if not number or number == data['Fleet'].get(f'Fleet{key}'):
+            continue
+        # Emotion set together by user
+        if f'{task}.Emotion.Fleet{key}Value' in modified:
+            continue
+        if number not in snapshot:
+            snapshot[number] = latest_emotion(config_data, number)
+        latest = snapshot[number]
+        if latest is None:
+            out[f'{task}.Emotion.Fleet{key}Record'] = _to_str(EMOTION_RECORD_UNKNOWN)
+        else:
+            out[f'{task}.Emotion.Fleet{key}Value'] = latest[0]
+            out[f'{task}.Emotion.Fleet{key}Record'] = _to_str(latest[1])
+    return out
 
 
 def status_read(config_name):

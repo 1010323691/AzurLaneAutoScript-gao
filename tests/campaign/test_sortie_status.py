@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 import module.campaign.sortie_status as sortie_status
 from module.campaign.sortie_status import build_groups, build_rows, emotion_current, emotion_slots, format_time, \
-    emotion_synced_recently, latest_emotion, stage_name, status_battle, status_read, status_update
+    emotion_follow_fleet, emotion_synced_recently, latest_emotion, stage_name, status_battle, status_read, \
+    status_update
 from module.combat.emotion import FleetEmotion
 
 NOW = datetime(2026, 10, 31, 18, 0, 0)
@@ -282,6 +283,34 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(latest_emotion(data, 1), (99, datetime(2026, 10, 31, 18, 30)))
         self.assertEqual(latest_emotion(data, 1, exclude_task='Event')[0], 52)
         self.assertIsNone(latest_emotion(data, 5))
+
+    def test_latest_emotion_tie(self):
+        # Main swapped Fleet1 and Fleet2 after emotion written to all slots at once,
+        # its slots keep values of the previous game fleets with the same record time
+        data = {task: task_data(value1=85, value2=104) for task in ['Main', 'Main2', 'Main3']}
+        data['Main']['Fleet'].update(Fleet1=2, Fleet2=1)
+        self.assertEqual(latest_emotion(data, 2)[0], 104)
+        self.assertEqual(latest_emotion(data, 1)[0], 85)
+
+    def test_emotion_follow_fleet(self):
+        data = {task: task_data(value1=85, value2=104) for task in ['Main', 'Event']}
+        data['Event']['Emotion']['Fleet1Record'] = '2026-10-31 18:30:00'
+        # Swap game fleets in Main
+        out = emotion_follow_fleet(data, {'Main.Fleet.Fleet1': 2, 'Main.Fleet.Fleet2': 1})
+        self.assertEqual(out, {
+            'Main.Emotion.Fleet1Value': 104, 'Main.Emotion.Fleet1Record': '2026-10-31 18:00:00',
+            'Main.Emotion.Fleet2Value': 85, 'Main.Emotion.Fleet2Record': '2026-10-31 18:30:00',
+        })
+        # Unchanged fleet, emotion set by user together, or fleet removed
+        self.assertEqual(emotion_follow_fleet(data, {'Main.Fleet.Fleet1': 1}), {})
+        self.assertEqual(emotion_follow_fleet(data, {'Main.Fleet.Fleet1': 2, 'Main.Emotion.Fleet1Value': 50}), {})
+        self.assertEqual(emotion_follow_fleet(data, {'Main.Fleet.Fleet2': 0}), {})
+        # Game fleet not recorded by any task, recovers as a new fleet
+        self.assertEqual(emotion_follow_fleet(data, {'Event.Fleet.Fleet2': 5}),
+                         {'Event.Emotion.Fleet2Record': '2020-01-01 00:00:00'})
+        # Not shared tasks and other settings are ignored
+        data['GemsFarming'] = task_data()
+        self.assertEqual(emotion_follow_fleet(data, {'GemsFarming.Fleet.Fleet1': 2, 'Main.Fleet.FleetOrder': 'x'}), {})
 
     def test_emotion_synced_recently(self):
         status = {'_EmotionSync': {'time': '2026-10-31 17:55:00', 'fleets': {'1': {}, '2': {}}}}
