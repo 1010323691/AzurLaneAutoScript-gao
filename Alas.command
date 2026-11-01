@@ -18,9 +18,6 @@ for file in "$electron" "webapp/packages/main/dist/index.cjs" "config/deploy.yam
     fi
 done
 
-# NumpyOcr matrices are too small for multithreading, default OpenBLAS threads make OCR 20x slower
-export OPENBLAS_NUM_THREADS=1
-
 # Electron finds config/deploy.yaml from the working directory, so run it here instead of `open`
 # Append to the log, a running instance is still writing it
 mkdir -p log

@@ -12,7 +12,7 @@ from PIL import Image
 
 from dev_tools.ocr_golden import MODELS
 from module.base.utils import extract_letters
-from module.ocr import backend
+from module.ocr import backend, numpy_ocr
 from module.ocr.al_ocr_base import AlOcrBase
 from module.ocr.models import OcrModel
 from module.ocr.numpy_ocr import NumpyNetwork, NumpyOcr, check_node, gru_layer, load_mxnet_params, op_convolution
@@ -117,6 +117,35 @@ class TestNumpyOcr(unittest.TestCase):
 
     def test_empty(self):
         self.assertEqual(get_model('azur_lane').atomic_ocr_for_single_lines([]), [])
+
+    def test_blas_single_thread(self):
+        if numpy_ocr.threadpoolctl is None:
+            self.skipTest('threadpoolctl is not installed')
+        threadpoolctl = numpy_ocr.threadpoolctl
+        env = {k: v for k, v in os.environ.items() if k != 'OPENBLAS_NUM_THREADS'}
+        # Context manager restores thread count at exit
+        with threadpoolctl.threadpool_limits(limits=4, user_api='blas'), patch.dict(os.environ, env, clear=True):
+            numpy_ocr.limit_blas_threads()
+            info = threadpoolctl.threadpool_info()
+            self.assertTrue(info)
+            self.assertEqual({lib['num_threads'] for lib in info if lib['user_api'] == 'blas'}, {1})
+
+    def test_blas_env_is_respected(self):
+        with patch.dict(os.environ, {'OPENBLAS_NUM_THREADS': '2'}), \
+                patch.object(numpy_ocr, 'threadpoolctl') as threadpoolctl:
+            numpy_ocr.limit_blas_threads()
+        threadpoolctl.threadpool_limits.assert_not_called()
+
+    def test_blas_limit_failures_only_warn(self):
+        env = {k: v for k, v in os.environ.items() if k != 'OPENBLAS_NUM_THREADS'}
+        with patch.dict(os.environ, env, clear=True), patch.object(numpy_ocr.logger, 'warning') as warning:
+            with patch.object(numpy_ocr, 'threadpoolctl', None):
+                numpy_ocr.limit_blas_threads()
+            self.assertEqual(warning.call_count, 1)
+            with patch.object(numpy_ocr, 'threadpoolctl') as threadpoolctl:
+                threadpoolctl.threadpool_info.return_value = []
+                numpy_ocr.limit_blas_threads()
+            self.assertEqual(warning.call_count, 2)
 
     def test_cand_alphabet(self):
         model = get_model('jp')

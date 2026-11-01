@@ -13,7 +13,15 @@ import struct
 from types import SimpleNamespace
 
 import numpy as np
+# Load the OpenBLAS of scipy now, threadpoolctl only limits libraries that are already loaded
+import scipy.linalg
 from PIL import Image
+
+try:
+    import threadpoolctl
+except ImportError:
+    # .venv created before threadpoolctl joined deploy/macos/requirements.txt
+    threadpoolctl = None
 
 from module.exception import RequestHumanTakeover
 from module.logger import logger
@@ -23,6 +31,27 @@ from module.ocr.line_split import line_split
 MXNET_LIST_MAGIC = 0x112
 MXNET_NDARRAY_MAGIC = 0xF993FAC9
 MXNET_DTYPE = {0: 'f4', 1: 'f8', 2: 'f2', 3: 'u1', 4: 'i4', 5: 'i1', 6: 'i8'}
+
+
+def limit_blas_threads():
+    """
+    Run BLAS in one thread, matrices here are too small for multithreading.
+    One OCR takes 80ms in one thread, but 1.8s and 400% CPU in default 12 threads.
+    numpy has been imported at this point, so setting OPENBLAS_NUM_THREADS here no longer works.
+    An OPENBLAS_NUM_THREADS set before starting Alas is respected.
+    """
+    if 'OPENBLAS_NUM_THREADS' in os.environ:
+        return
+    if threadpoolctl is None:
+        logger.warning('threadpoolctl is not installed, OCR may be slow, '
+                       'please install deploy/macos/requirements.txt')
+        return
+    threadpoolctl.threadpool_limits(limits=1, user_api='blas')
+    if not threadpoolctl.threadpool_info():
+        logger.warning('No BLAS library found to limit, OCR may be slow')
+
+
+limit_blas_threads()
 
 
 def load_mxnet_params(file):

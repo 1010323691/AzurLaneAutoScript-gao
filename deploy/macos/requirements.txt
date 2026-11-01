@@ -9,6 +9,8 @@ scipy==1.11.4
 pillow==11.3.0
 opencv-python-headless==4.8.1.78
 imageio==2.27.0
+# NumpyOcr runs BLAS in one thread, see limit_blas_threads()
+threadpoolctl==3.6.0
 
 # Device connection
 adbutils==0.11.0
