@@ -710,6 +710,13 @@ class AlasGUI(Frame):
             state_text = t("Gui.Overview.StateEmotionDelay", time=time_str)
         elif state == "defeat":
             state_text = t("Gui.Overview.StateDefeat", time=time_str)
+        elif state == "oil_limit":
+            state_text = t(
+                "Gui.Overview.StateOilLimit",
+                oil=row.get("oil") or "?",
+                limit=row.get("oil_limit") or "?",
+                time=time_str,
+            )
         elif state == "running":
             state_text = t("Gui.Overview.StateRunning")
         elif state == "pending":

@@ -48,10 +48,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 只有一支舰队或第一次切换失败时退回原来的重试；切回失败会再试一次，仍失败就警告并退回原重试，不动镜头。
   12. **潜艇移动点不动时放弃移动**：打 Boss 前 `submarine_move_near_boss()` 把潜艇移到 Boss 附近，`_submarine_goto()` 每 2 秒没到达就重点一次，上游没有次数上限，点到 `GameTooManyClickError`。日服 5-4 曾从 G3 移到 G2 连点 13 次无反应（当时潜艇弹药 0/7，G2 被潜艇自己的模型盖住；重进后同样的移动一次成功，确切原因未定）。
      - 现在重点 `Fleet.SUBMARINE_MOVE_RETRY`（3）次仍没到达就返回 False，`submarine_goto()` 随之取消潜艇移动，照常去打 Boss，只是潜艇可能不在支援范围内。
-  13. **总览页「出击状态」面板**：在日志区上方。开着的、带 `Campaign` 和 `Emotion` 分组的任务（主线、活动等）按游戏舰队编号分组，用同一组舰队的任务合成一块：每个任务一行显示关卡、第几战和等待原因及时间（图内等心情、心情不够推迟到几点、战败重试、下次出击）；每队只显示一次，内容是游戏舰队编号、职能、谁在出击、心情（带「心情控制」下限刻度）和恢复速度。
+  13. **总览页「出击状态」面板**：在日志区上方。开着的、带 `Campaign` 和 `Emotion` 分组的任务（主线、活动等）按游戏舰队编号分组，用同一组舰队的任务合成一块：每个任务一行显示关卡、第几战和等待原因及时间（图内等心情、心情不够推迟到几点、战败重试、石油不足重试、下次出击）；每队只显示一次，内容是游戏舰队编号、职能、谁在出击、心情（带「心情控制」下限刻度）和恢复速度。
      - 数据：心情、关卡、舰队、NextRun 由 GUI 从 `config/alas.json` 读取并计算（`module/campaign/sortie_status.py` 的 `build_groups`，心情公式 `emotion_current` 与 `FleetEmotion.update` 共用）。运行时状态由 Alas 进程写进 `log/status/<config_name>.json`，按任务名分键，包括自动互换后的实际职能、出击中的舰队、第几战、推迟原因。
-     - 写入点：`CampaignBase.sortie_status_map_entered`（进图后）、`Emotion.reduce` / `wait` / `check_reduce`、`handle_low_emotion_withdraw`、`handle_campaign_defeat`、`CampaignEnd`。写失败只记 warning，面板渲染异常只记日志，都不影响推图和总览刷新。
-     - 推迟原因只有在 NextRun 与记录的时间相差 1 分钟以内时才显示，被用户或别的逻辑改过 NextRun 就退回「下次出击」。
+     - 写入点：`CampaignBase.sortie_status_map_entered`（进图后）、`Emotion.reduce` / `wait` / `check_reduce`、`handle_low_emotion_withdraw`、`handle_campaign_defeat`、`CampaignRun.oil_limit_delay`（石油低于 `max(500, StopCondition.OilLimit)` 时，进图前检查和自律寻敌途中检查两条路径共用，推迟时间仍是上游的随机 2～4 小时，状态里记石油数和下限）、`CampaignEnd`。写失败只记 warning，面板渲染异常只记日志，都不影响推图和总览刷新。
+     - 推迟原因只有在 NextRun 与记录的时间相差 1 分钟以内时才显示，被用户或别的逻辑改过 NextRun 就退回「下次出击」。再次出击进图时 `sortie_status_map_entered` 用 `reset=True` 清掉旧原因；任务运行中一律显示运行状态。
      - **心情按游戏舰队编号共用**：心情是游戏舰队的属性，所有带 `Emotion` 和 `Fleet` 分组的任务中，`Fleet.Fleet{1,2}` 编号相同的槽位共用一份心情。`FleetEmotion.value / record` 取这些槽位里 `Record` 最新的一份（`latest_emotion`）；`Emotion.record()` 通过 `record_shared()` 用 `cross_set` 同时写进其他任务。`Recover / Oath / Control` 仍是各任务自己的设置。GemsFarming 不参与共用（`EMOTION_NOT_SHARED`）：它会换船，并按新船写心情。
   14. **心情不够回港等待前，先去寮舍同步真实心情**（`module/combat/emotion_sync.py`）：
      - 触发：条件都在 `emotion_sync_available()`：本次任务还没同步过、日服、任务名正好是 `Main` 或 `Event`（主线2/3、活动 A～D、GemsFarming 等可能用别的舰队，寮舍里不是它们的船）、心情模式为计算。每次任务只同步一次，有两个入口：

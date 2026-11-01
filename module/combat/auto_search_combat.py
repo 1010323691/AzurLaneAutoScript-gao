@@ -12,6 +12,8 @@ class AutoSearchCombat(MapOperation, Combat, CampaignStatus):
     _auto_search_in_stage_timer = Timer(3, count=6)
     _auto_search_status_confirm = False
     auto_search_oil_limit_triggered = False
+    # Oil amount when auto_search_oil_limit_triggered, for GUI
+    auto_search_oil = 0
     auto_search_coin_limit_triggered = False
 
     def _handle_auto_search_menu_missing(self):
@@ -101,6 +103,7 @@ class AutoSearchCombat(MapOperation, Combat, CampaignStatus):
                 if oil < max(500, self.config.StopCondition_OilLimit):
                     logger.info('Reach oil limit')
                     self.auto_search_oil_limit_triggered = True
+                    self.auto_search_oil = oil
                 else:
                     if self.auto_search_oil_limit_triggered:
                         logger.warning('auto_search_oil_limit_triggered but oil recovered, '

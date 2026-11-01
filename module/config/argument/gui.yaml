@@ -58,6 +58,7 @@ Overview:
   StateEmotionWait:
   StateEmotionDelay:
   StateDefeat:
+  StateOilLimit:
   StateWaiting:
   StatePending:
   Fleet:

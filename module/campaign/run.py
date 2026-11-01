@@ -2,11 +2,12 @@ import copy
 import importlib
 import os
 import random
+from datetime import datetime, timedelta
 
 import module.config.server as server
 from module.campaign.campaign_base import CampaignBase
 from module.campaign.campaign_event import CampaignEvent
-from module.campaign.sortie_status import emotion_synced_recently, status_read
+from module.campaign.sortie_status import emotion_synced_recently, status_read, status_update
 from module.campaign.campaign_ui import MODE_SWITCH_1
 from module.config.config import AzurLaneConfig
 from module.exception import CampaignEnd, RequestHumanTakeover, ScriptEnd
@@ -124,14 +125,15 @@ class CampaignRun(CampaignEvent):
             return True
         # Oil limit
         if oil_check:
-            if self.get_oil() < max(500, self.config.StopCondition_OilLimit):
+            oil = self.get_oil()
+            if oil < max(500, self.config.StopCondition_OilLimit):
                 logger.hr('Triggered stop condition: Oil limit')
-                self.config.task_delay(minute=(120, 240))
+                self.oil_limit_delay(oil)
                 return True
         # Auto search oil limit
         if self.campaign.auto_search_oil_limit_triggered:
             logger.hr('Triggered stop condition: Auto search oil limit')
-            self.config.task_delay(minute=(120, 240))
+            self.oil_limit_delay(self.campaign.auto_search_oil)
             return True
         # If Get a New Ship
         if self.config.StopCondition_GetNewShip and self.campaign.config.GET_SHIP_TRIGGERED:
@@ -160,6 +162,19 @@ class CampaignRun(CampaignEvent):
                 return True
 
         return False
+
+    def oil_limit_delay(self, oil):
+        """
+        Delay 2~4 hours for oil to recover, and show it in GUI like campaign defeat.
+        Status is reset after entering map next time.
+
+        Args:
+            oil (int): Current oil amount
+        """
+        until = datetime.now().replace(microsecond=0) + timedelta(minutes=random.randint(120, 240))
+        self.config.task_delay(target=until)
+        status_update(self.config, state='oil_limit', until=until, oil=oil,
+                      oil_limit=max(500, self.config.StopCondition_OilLimit))
 
     def _triggered_app_restart(self):
         """

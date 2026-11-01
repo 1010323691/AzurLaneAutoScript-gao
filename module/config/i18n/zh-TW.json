@@ -3067,6 +3067,7 @@
       "StateEmotionWait": "圖內等第 {fleet} 隊心情，預計 {time} 恢復",
       "StateEmotionDelay": "心情不夠，預計 {time} 恢復繼續打",
       "StateDefeat": "戰敗撤退，{time} 重試",
+      "StateOilLimit": "石油不足（{oil}，下限 {limit}），{time} 重試",
       "StateWaiting": "下次出擊 {time}",
       "StatePending": "已到時間，排隊等待執行",
       "Fleet": "第 {number} 艦隊",

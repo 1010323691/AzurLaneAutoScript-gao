@@ -3067,6 +3067,7 @@
       "StateEmotionWait": "Waiting emotion of fleet {fleet}, recover at {time}",
       "StateEmotionDelay": "Emotion not enough, continue at {time}",
       "StateDefeat": "Defeated, retry at {time}",
+      "StateOilLimit": "Low oil ({oil}, limit {limit}), retry at {time}",
       "StateWaiting": "Next run {time}",
       "StatePending": "Due, waiting in queue",
       "Fleet": "Fleet {number}",

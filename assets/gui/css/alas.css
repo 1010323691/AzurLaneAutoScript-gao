@@ -492,7 +492,8 @@ pre.rich-traceback-code {
     color: #d29922;
 }
 
-.sortie-head.sortie-defeat .sortie-state {
+.sortie-head.sortie-defeat .sortie-state,
+.sortie-head.sortie-oil_limit .sortie-state {
     color: #e5534b;
 }
 
