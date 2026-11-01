@@ -207,6 +207,15 @@ class TestConfigBindRotate(ConfigTestBase):
         self.assertEqual(config.FLEET_ROTATE_BASE, 1)
         self.assertEqual(Emotion(config).fleets[0].key, 3)
 
+    def test_fleet1_same_as_fleet2_disables_rotate(self):
+        data = read_file(self.path)
+        data['Main']['Fleet']['Fleet2'] = 1
+        with open(self.path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, default=str)
+        self.assertFalse(self.config('Main').FLEET_ORDER_ROTATE)
+        # Same as GUI panel
+        self.assertFalse(sortie_status.is_rotate(read_file(self.path)['Main']['Fleet']))
+
     def test_other_task_not_rotate(self):
         self.assertFalse(self.config('Event').FLEET_ORDER_ROTATE)
         self.assertFalse(self.config('Main2').FLEET_ORDER_ROTATE)

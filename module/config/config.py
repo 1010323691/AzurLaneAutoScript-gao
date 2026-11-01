@@ -196,12 +196,13 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
         if path and deep_get(self.data, keys=path) == "fleet1_mob_fleet2_boss_fleet3_rotate":
             base = deep_get(self.data, keys=self.bound.get("Fleet_Fleet1", ""), default=0)
             fleet3 = getattr(self, "Fleet_Fleet3", 0)
-            if fleet3 and self.Fleet_Fleet2 and fleet3 not in [base, self.Fleet_Fleet2]:
+            numbers = [base, self.Fleet_Fleet2, fleet3]
+            if all(numbers) and len(set(numbers)) == 3:
                 self.FLEET_ORDER_ROTATE = True
                 self.FLEET_ROTATE_BASE = base
             else:
                 logger.warning(f"Fleet order rotating mob fleet 1 and 3 requires 3 different fleets, "
-                               f"but got {[base, self.Fleet_Fleet2, fleet3]}, rotation disabled")
+                               f"but got {numbers}, rotation disabled")
         if self.Fleet_FleetOrder == "fleet1_mob_fleet2_boss_fleet3_rotate":
             super().__setattr__("Fleet_FleetOrder", "fleet1_mob_fleet2_boss")
 
