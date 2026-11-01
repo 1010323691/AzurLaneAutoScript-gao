@@ -103,7 +103,8 @@ class GeneratedConfig:
     Fleet_Fleet2Formation = 'double_line'  # line_ahead, double_line, diamond
     Fleet_Fleet2Mode = 'combat_auto'  # combat_auto, combat_manual, stand_still_in_the_middle, hide_in_bottom_left, hide_in_upper_left
     Fleet_Fleet2Step = 2  # 2, 3, 4, 5
-    Fleet_FleetOrder = 'fleet1_mob_fleet2_boss'  # fleet1_mob_fleet2_boss, fleet1_boss_fleet2_mob, fleet1_all_fleet2_standby, fleet1_standby_fleet2_all, fleet1_mob_fleet2_boss_auto_swap
+    Fleet_Fleet3 = 0  # 0, 1, 2, 3, 4, 5, 6
+    Fleet_FleetOrder = 'fleet1_mob_fleet2_boss'  # fleet1_mob_fleet2_boss, fleet1_boss_fleet2_mob, fleet1_all_fleet2_standby, fleet1_standby_fleet2_all, fleet1_mob_fleet2_boss_auto_swap, fleet1_mob_fleet2_boss_fleet3_rotate
 
     # Group `Submarine`
     Submarine_Fleet = 0  # 0, 1, 2
@@ -123,6 +124,11 @@ class GeneratedConfig:
     Emotion_Fleet2Control = 'prevent_green_face'  # keep_exp_bonus, prevent_green_face, prevent_yellow_face, prevent_red_face
     Emotion_Fleet2Recover = 'not_in_dormitory'  # not_in_dormitory, dormitory_floor_1, dormitory_floor_2
     Emotion_Fleet2Oath = False
+    Emotion_Fleet3Value = 119
+    Emotion_Fleet3Record = datetime.datetime(2020, 1, 1, 0, 0)
+    Emotion_Fleet3Control = 'prevent_green_face'  # keep_exp_bonus, prevent_green_face, prevent_yellow_face, prevent_red_face
+    Emotion_Fleet3Recover = 'not_in_dormitory'  # not_in_dormitory, dormitory_floor_1, dormitory_floor_2
+    Emotion_Fleet3Oath = False
 
     # Group `HpControl`
     HpControl_UseHpBalance = False

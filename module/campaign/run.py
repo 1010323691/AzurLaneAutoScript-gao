@@ -400,6 +400,9 @@ class CampaignRun(CampaignEvent):
         # Auto search continue skips fleet preparation, fleet order swapped by emotion won't be applied
         if self.campaign.emotion.is_calculate and self.campaign.emotion.is_auto_swap:
             return False
+        # Same as above, mob fleet rotated by emotion won't be applied
+        if self.campaign.emotion.is_calculate and self.campaign.emotion.is_rotate:
+            return False
 
         return self.run_count > 0 and self.campaign.map_is_auto_search
 
@@ -452,7 +455,11 @@ class CampaignRun(CampaignEvent):
         if not self.emotion_sync_available():
             return False
         # Main and Event use the same fleets, don't sync again when they run one after another
-        numbers = [n for n in [self.config.Fleet_Fleet1, self.config.Fleet_Fleet2] if n]
+        if getattr(self.config, 'FLEET_ORDER_ROTATE', False):
+            # Mob fleets in dorm, boss fleet is not
+            numbers = [self.config.FLEET_ROTATE_BASE, self.config.Fleet_Fleet3]
+        else:
+            numbers = [n for n in [self.config.Fleet_Fleet1, self.config.Fleet_Fleet2] if n]
         if emotion_synced_recently(status_read(self.config.config_name), numbers, EMOTION_SYNC_INTERVAL):
             logger.info(f'Emotion synced within {EMOTION_SYNC_INTERVAL} minutes, skip emotion sync before sortie')
             return False

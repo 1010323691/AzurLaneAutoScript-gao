@@ -251,8 +251,13 @@ class TestBuildRows(unittest.TestCase):
         self.assertFalse(group['reversed'])
         self.assertEqual([f['number'] for f in groups[1]['fleets']], [3])
         self.assertIsNone(groups[1]['synced'])
-        # Dorm floors reversed, shown on synced group only
+        # Dorm floors reversed, not shown when fleets switch roles by auto swap
         status['_EmotionSync']['reversed'] = True
+        groups = build_groups(data, status, running_task='Event', now=NOW)
+        self.assertFalse(groups[0]['reversed'])
+        # Shown on synced group only, with fixed fleet roles
+        for task in ['Main', 'Event']:
+            data[task]['Fleet']['FleetOrder'] = 'fleet1_mob_fleet2_boss'
         groups = build_groups(data, status, running_task='Event', now=NOW)
         self.assertTrue(groups[0]['reversed'])
         self.assertFalse(groups[1]['reversed'])

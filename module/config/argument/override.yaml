@@ -40,6 +40,7 @@ GemsFarming:
     GetNewShip: false
     ReachLevel: 0
   Fleet:
+    Fleet3: 0
     FleetOrder:
       display: display
       value: fleet1_all_fleet2_standby
@@ -54,6 +55,11 @@ GemsFarming:
     Fleet2Control: prevent_red_face
     Fleet2Recover: not_in_dormitory
     Fleet2Oath: false
+    Fleet3Value: 119
+    Fleet3Record: 2020-01-01 00:00:00
+    Fleet3Control: prevent_red_face
+    Fleet3Recover: not_in_dormitory
+    Fleet3Oath: false
   Submarine:
     Mode:
       display: display
@@ -174,6 +180,11 @@ Raid:
     Fleet2Control: prevent_yellow_face
     Fleet2Recover: not_in_dormitory
     Fleet2Oath: false
+    Fleet3Value: 119
+    Fleet3Record: 2020-01-01 00:00:00
+    Fleet3Control: prevent_yellow_face
+    Fleet3Recover: not_in_dormitory
+    Fleet3Oath: false
 Hospital:
   StopCondition:
     RunCount: 0
@@ -190,6 +201,11 @@ Hospital:
     Fleet2Control: prevent_yellow_face
     Fleet2Recover: not_in_dormitory
     Fleet2Oath: false
+    Fleet3Value: 119
+    Fleet3Record: 2020-01-01 00:00:00
+    Fleet3Control: prevent_yellow_face
+    Fleet3Recover: not_in_dormitory
+    Fleet3Oath: false
 RaidDaily:
   Scheduler:
     SuccessInterval: 30
@@ -215,6 +231,11 @@ RaidDaily:
     Fleet2Control: prevent_yellow_face
     Fleet2Recover: not_in_dormitory
     Fleet2Oath: false
+    Fleet3Value: 119
+    Fleet3Record: 2020-01-01 00:00:00
+    Fleet3Control: prevent_yellow_face
+    Fleet3Recover: not_in_dormitory
+    Fleet3Oath: false
 Coalition:
   Scheduler:
     SuccessInterval: 30
@@ -242,6 +263,11 @@ Coalition:
     Fleet2Control: prevent_yellow_face
     Fleet2Recover: not_in_dormitory
     Fleet2Oath: false
+    Fleet3Value: 119
+    Fleet3Record: 2020-01-01 00:00:00
+    Fleet3Control: prevent_yellow_face
+    Fleet3Recover: not_in_dormitory
+    Fleet3Oath: false
 CoalitionSp:
   Scheduler:
     SuccessInterval: 30
@@ -269,6 +295,11 @@ CoalitionSp:
     Fleet2Control: prevent_yellow_face
     Fleet2Recover: not_in_dormitory
     Fleet2Oath: false
+    Fleet3Value: 119
+    Fleet3Record: 2020-01-01 00:00:00
+    Fleet3Control: prevent_yellow_face
+    Fleet3Recover: not_in_dormitory
+    Fleet3Oath: false
 EventShop:
   Scheduler:
     SuccessInterval: 30

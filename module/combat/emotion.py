@@ -20,23 +20,29 @@ FLEET_ORDER_SWAP = {
 
 
 class FleetEmotion:
-    def __init__(self, config, fleet):
+    def __init__(self, config, fleet, key=None):
         """
         Args:
             config (AzurLaneConfig):
-            fleet (int): Fleet index
+            fleet (int): Fleet index, the sortie slot
+            key (int): Index of settings in Fleet.Fleet{key} and Emotion.Fleet{key}*, same as fleet by default.
+                Fleet 3 uses key=3 in slot 1, when Fleet.FleetOrder is fleet1_mob_fleet2_boss_fleet3_rotate.
         """
         self.config = config
         self.fleet = fleet
+        self.key = fleet if key is None else key
         self.current = 0
 
     @property
     def number(self):
         """
         Returns:
-            int: Game fleet number of this fleet slot, 0 if unknown.
+            int: Game fleet number of this fleet, 0 if unknown.
         """
-        return getattr(self.config, f'Fleet_Fleet{self.fleet}', 0)
+        # Fleet_Fleet1 is overridden when mob fleet is rotated to fleet 3
+        if self.key == 1 and getattr(self.config, 'FLEET_ORDER_ROTATE', False):
+            return self.config.FLEET_ROTATE_BASE
+        return getattr(self.config, f'Fleet_Fleet{self.key}', 0)
 
     def shared_slots(self):
         """
@@ -70,8 +76,8 @@ class FleetEmotion:
         Returns:
             tuple[int, datetime.datetime]:
         """
-        value = getattr(self.config, f'Emotion_Fleet{self.fleet}Value')
-        record = getattr(self.config, f'Emotion_Fleet{self.fleet}Record')
+        value = getattr(self.config, f'Emotion_Fleet{self.key}Value')
+        record = getattr(self.config, f'Emotion_Fleet{self.key}Record')
         data, task = self._shared_data()
         if data is not None:
             other = latest_emotion(data, self.number, exclude_task=task)
@@ -93,7 +99,7 @@ class FleetEmotion:
         Returns:
             str:
         """
-        return f'Emotion_Fleet{self.fleet}Value'
+        return f'Emotion_Fleet{self.key}Value'
 
     @property
     def record(self):
@@ -109,7 +115,7 @@ class FleetEmotion:
         Returns:
             str: not_in_dormitory, dormitory_floor_1, dormitory_floor_2
         """
-        return getattr(self.config, f'Emotion_Fleet{self.fleet}Recover')
+        return getattr(self.config, f'Emotion_Fleet{self.key}Recover')
 
     @property
     def control(self):
@@ -117,7 +123,7 @@ class FleetEmotion:
         Returns:
             str: keep_exp_bonus, prevent_green_face, prevent_yellow_face, prevent_red_face
         """
-        return getattr(self.config, f'Emotion_Fleet{self.fleet}Control')
+        return getattr(self.config, f'Emotion_Fleet{self.key}Control')
 
     @property
     def oath(self):
@@ -125,7 +131,7 @@ class FleetEmotion:
         Returns:
             bool: If all ships oath.
         """
-        return getattr(self.config, f'Emotion_Fleet{self.fleet}Oath')
+        return getattr(self.config, f'Emotion_Fleet{self.key}Oath')
 
     @property
     def speed(self):
@@ -165,15 +171,15 @@ class FleetEmotion:
                 If already recovered, return time in the past.
         """
         if self.control == 'keep_exp_bonus' and self.recover == 'not_in_dormitory':
-            logger.critical(f'Fleet {self.fleet} Emotion Control=\"Keep Happy Bonus\" and '
-                            f'Fleet {self.fleet} Recover Location=\"Docks\" can not be used together, '
+            logger.critical(f'Fleet {self.key} Emotion Control=\"Keep Happy Bonus\" and '
+                            f'Fleet {self.key} Recover Location=\"Docks\" can not be used together, '
                             'please check your emotion settings')
             raise RequestHumanTakeover
         # In 14-4 with 2X book, expected emotion reduce is 32, can't keep happy bonus (>120),
         # otherwise will infinite task delay
         if self.control == 'keep_exp_bonus' and expected_reduce >= 29:
             expected_reduce = 29
-            logger.info(f'Fleet {self.fleet} expected_reduce is limited to 29 '
+            logger.info(f'Fleet {self.key} expected_reduce is limited to 29 '
                         f'when Emotion Control=\"Keep Happy Bonus\"')
 
         recover_count = (self.limit + expected_reduce - self.current) // self.speed
@@ -193,7 +199,37 @@ class Emotion:
         self.config = config
         self.fleet_1 = FleetEmotion(self.config, fleet=1)
         self.fleet_2 = FleetEmotion(self.config, fleet=2)
-        self.fleets = [self.fleet_1, self.fleet_2]
+        # Takes slot 1 when mob fleet is rotated to fleet 3
+        self.fleet_3 = FleetEmotion(self.config, fleet=1, key=3)
+
+    @property
+    def is_rotate(self):
+        """
+        Returns:
+            bool: If mob fleet is rotated between fleet 1 and fleet 3 according to emotion.
+        """
+        return getattr(self.config, 'FLEET_ORDER_ROTATE', False) \
+            and self.config.Fleet_FleetOrder == 'fleet1_mob_fleet2_boss'
+
+    @property
+    def fleets(self):
+        """
+        Returns:
+            list[FleetEmotion]: Fleets in sortie slot 1 and 2.
+        """
+        if self.is_rotate and self.config.Fleet_Fleet1 == self.fleet_3.number:
+            return [self.fleet_3, self.fleet_2]
+        return [self.fleet_1, self.fleet_2]
+
+    @property
+    def all_fleets(self):
+        """
+        Returns:
+            list[FleetEmotion]: Fleets to update and record, including the resting mob fleet.
+        """
+        if self.is_rotate:
+            return [self.fleet_1, self.fleet_2, self.fleet_3]
+        return [self.fleet_1, self.fleet_2]
 
     @property
     def is_calculate(self):
@@ -207,7 +243,7 @@ class Emotion:
         """
         Update emotion value. This should be called before doing anything.
         """
-        for fleet in self.fleets:
+        for fleet in self.all_fleets:
             fleet.update()
 
     def record(self):
@@ -215,7 +251,7 @@ class Emotion:
         Save current emotion value to config.
         """
         value = {}
-        for fleet in self.fleets:
+        for fleet in self.all_fleets:
             value[fleet.value_name] = fleet.current
 
         self.config.set_record(**value)
@@ -227,16 +263,16 @@ class Emotion:
 
         Args:
             **kwargs: Other emotion settings to save to all of them, such as Fleet1Recover=...,
-                keys are named by the fleet slot of current task.
+                keys are named by the fleet key of current task.
         """
         modified = {}
         record = datetime.now().replace(microsecond=0)
-        for fleet in self.fleets:
+        for fleet in self.all_fleets:
             for task, slot in fleet.shared_slots():
                 modified[f'{task}.Emotion.Fleet{slot}Value'] = fleet.current
                 modified[f'{task}.Emotion.Fleet{slot}Record'] = record
                 for key, value in kwargs.items():
-                    if key.startswith(f'Fleet{fleet.fleet}'):
+                    if key.startswith(f'Fleet{fleet.key}'):
                         modified[f'{task}.Emotion.Fleet{slot}{key[len("FleetN"):]}'] = value
         if not modified:
             return
@@ -245,8 +281,8 @@ class Emotion:
                 self.config.cross_set(keys=keys, value=value)
 
     def show(self):
-        for fleet in self.fleets:
-            logger.attr(f'Emotion fleet_{fleet.fleet}', fleet.value)
+        for fleet in self.all_fleets:
+            logger.attr(f'Emotion fleet_{fleet.key}', fleet.value)
 
     @property
     def reduce_per_battle(self):
@@ -279,6 +315,7 @@ class Emotion:
         Check emotion before entering a campaign.
         If Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap, choose the fleet order of this sortie,
         mob fleet and boss fleet are swapped if mob fleet doesn't have enough emotion.
+        If Fleet.FleetOrder is fleet1_mob_fleet2_boss_fleet3_rotate, choose fleet 1 or fleet 3 as mob fleet.
 
         Args:
             battle (int): Battles in this campaign
@@ -290,14 +327,18 @@ class Emotion:
         """
         if not self.is_calculate:
             return
-        if not delay and not self.is_auto_swap:
+        if not delay and not self.is_auto_swap and not self.is_rotate:
             return
 
         self.update()
         self.record()
         self.show()
         method = self.config.Fleet_FleetOrder
-        if not self.is_auto_swap:
+        if self.is_rotate:
+            recovered = self.check_rotate(battle, delay=delay)
+            if recovered is None:
+                return
+        elif not self.is_auto_swap:
             recovered = self.get_recovered(method, battle)
         else:
             # Keep current order, otherwise swap.
@@ -331,6 +372,65 @@ class Emotion:
             status_update(self.config, state='emotion_delay', until=recovered)
             raise ScriptEnd('Emotion control')
 
+    def rotate_to(self, fleet):
+        """
+        Use fleet 1 or fleet 3 as mob fleet in this sortie.
+
+        Args:
+            fleet (FleetEmotion): self.fleet_1 or self.fleet_3
+        """
+        number = fleet.number
+        if self.config.Fleet_Fleet1 != number:
+            logger.info(f'Rotate mob fleet: game fleet {self.config.Fleet_Fleet1} -> {number}')
+            self.config.override(Fleet_Fleet1=number)
+
+    def check_rotate(self, battle, delay=True):
+        """
+        If Fleet.FleetOrder is fleet1_mob_fleet2_boss_fleet3_rotate, choose fleet 1 or fleet 3 as mob fleet,
+        the one with enough and higher emotion.
+        Should be called after update().
+
+        Args:
+            battle (int): Battles in this campaign
+            delay (bool): False to only choose mob fleet.
+
+        Returns:
+            datetime.datetime: When will emotion be enough, None if no need to delay.
+        """
+        method = self.config.Fleet_FleetOrder
+        current = self.fleets[0]
+        other = self.fleet_3 if current is self.fleet_1 else self.fleet_1
+        # Higher emotion first, current mob fleet first if the same
+        candidates = sorted([current, other], key=lambda f: f.current, reverse=True)
+        logger.info('Mob fleet candidates: ' + ', '.join(
+            f'game fleet {f.number} ({f.current})' for f in candidates))
+        recovered = None
+        capped = None
+        first = None
+        # Same as auto swap, allow boss fleet to fight boss as long as its emotion is above control limit
+        for relax in [False, True]:
+            for fleet in candidates:
+                recover_time = self.get_recovered(method, battle, relax_boss=relax, mob=fleet)
+                if recover_time <= datetime.now():
+                    self.rotate_to(fleet)
+                    return None
+                # Emotion is capped, this mob fleet would never be enough at recover_time
+                if not self.is_reachable(method, battle, mob=fleet):
+                    capped = recover_time if capped is None else min(capped, recover_time)
+                    continue
+                if recovered is None or recover_time < recovered:
+                    recovered = recover_time
+                    first = fleet
+        # Neither is enough, use the one recovers first, emotion may be waited in map
+        if first is not None:
+            self.rotate_to(first)
+        if not delay:
+            logger.info('Emotion of both mob fleets is not enough')
+            return None
+        if recovered is None:
+            recovered = capped
+        return recovered
+
     def check_swap(self, battle):
         """
         Only swap fleet order if mob fleet doesn't have enough emotion, without delaying current task.
@@ -340,7 +440,7 @@ class Emotion:
         Args:
             battle (int): Battles in this campaign
         """
-        if not self.is_auto_swap:
+        if not self.is_auto_swap and not self.is_rotate:
             return
         Emotion.check_reduce(self, battle, delay=False)
 
@@ -363,8 +463,12 @@ class Emotion:
             self.check_swap(battle)
             return
         method = self.config.Fleet_FleetOrder
-        orders = [method, FLEET_ORDER_SWAP[method]] if self.is_auto_swap else [method]
-        if not any(self.is_reachable(order, battle) for order in orders):
+        if self.is_rotate:
+            reachable = any(self.is_reachable(method, battle, mob=mob) for mob in [self.fleet_1, self.fleet_3])
+        else:
+            orders = [method, FLEET_ORDER_SWAP[method]] if self.is_auto_swap else [method]
+            reachable = any(self.is_reachable(order, battle) for order in orders)
+        if not reachable:
             # Emotion is capped, delaying would never be enough, wait emotion in map instead
             logger.warning(f'Emotion can never be enough for {battle} battles, enter map and wait in map')
             self.check_swap(battle)
@@ -401,16 +505,30 @@ class Emotion:
 
         return tuple(int(b) for b in np.array(battle) * self.reduce_per_battle_before_entering)
 
-    def is_reachable(self, method, battle):
+    def slot_fleets(self, mob=None):
+        """
+        Args:
+            mob (FleetEmotion): Fleet in slot 1 instead of the current one, used when rotating mob fleet.
+
+        Returns:
+            list[FleetEmotion]: Fleets in sortie slot 1 and 2.
+        """
+        if mob is None:
+            return self.fleets
+        return [mob, self.fleet_2]
+
+    def is_reachable(self, method, battle, mob=None):
         """
         Args:
             method (str): Fleet order
             battle (int): Battles in this campaign
+            mob (FleetEmotion): Fleet in slot 1 instead of the current one.
 
         Returns:
             bool: If emotion can be enough after recovering to max, with boss fleet relaxed.
         """
-        for fleet, reduce in zip(self.fleets, self.expected_reduce(method, battle, relax_boss=True)):
+        fleets = self.slot_fleets(mob)
+        for fleet, reduce in zip(fleets, self.expected_reduce(method, battle, relax_boss=True)):
             # Same as FleetEmotion.get_recovered()
             if fleet.control == 'keep_exp_bonus':
                 reduce = min(reduce, 29)
@@ -418,7 +536,7 @@ class Emotion:
                 return False
         return True
 
-    def get_recovered(self, method, battle, relax_boss=False):
+    def get_recovered(self, method, battle, relax_boss=False, mob=None):
         """
         Args:
             method (str): Fleet order
@@ -426,15 +544,17 @@ class Emotion:
             relax_boss (bool): True to only require boss fleet above control limit,
                 not counting the emotion reduce of boss battle.
                 Not relaxed if boss fleet is set to keep happy bonus, which would be lost.
+            mob (FleetEmotion): Fleet in slot 1 instead of the current one.
 
         Returns:
             datetime.datetime: When will all fleets have enough emotion for this campaign.
                 If already recovered, return time in the past.
         """
+        fleets = self.slot_fleets(mob)
         battle = self.expected_reduce(method, battle, relax_boss=relax_boss)
         logger.info(f'Expect emotion reduce: {battle} ({method})')
 
-        return max([f.get_recovered(b) for f, b in zip(self.fleets, battle)])
+        return max([f.get_recovered(b) for f, b in zip(fleets, battle)])
 
     def wait(self, fleet_index):
         """

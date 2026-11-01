@@ -141,6 +141,10 @@ class ManualConfig:
     STAGE_INCREASE_CUSTOM = ''
     # If Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap, set in AzurLaneConfig.bind()
     FLEET_ORDER_AUTO_SWAP = False
+    # If Fleet.FleetOrder is fleet1_mob_fleet2_boss_fleet3_rotate, set in AzurLaneConfig.bind()
+    FLEET_ORDER_ROTATE = False
+    # Fleet.Fleet1 in user config, Fleet_Fleet1 is overridden when mob fleet is rotated to Fleet.Fleet3
+    FLEET_ROTATE_BASE = 0
     MAP_HAS_CLEAR_PERCENTAGE = True
     MAP_CLEAR_PERCENTAGE_SHORT = False
     MAP_HAS_WALK_SPEEDUP = False

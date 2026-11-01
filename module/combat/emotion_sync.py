@@ -3,7 +3,8 @@ from datetime import datetime
 
 from module.base.button import ButtonGrid
 from module.base.timer import Timer
-from module.campaign.sortie_status import AUTO_SWAP_SUFFIX, EMOTION_SYNC_KEY, FLEET_ORDER_ROLE, status_update
+from module.campaign.sortie_status import (AUTO_SWAP_SUFFIX, EMOTION_SYNC_KEY, FLEET_ORDER_ROLE, FLEET_ORDER_ROTATE,
+                                           rotate_tasks, status_update)
 from module.dorm.assets import DORM_TAB_REST, DORM_TAB_TRAINING, DORM_TRAINING_CLOSE, DORM_TRAINING_ENTER
 from module.logger import logger
 from module.ocr.ocr import Digit, Ocr
@@ -42,6 +43,12 @@ SPEED_TO_RECOVER = {
 ROLE_TO_TAB = {
     'mob': 'rest',
     'boss': 'training',
+}
+# Dorm tab of each fleet key when mob fleet is rotated between fleet 1 and fleet 3.
+# Both are mob fleets, fleet 3 in training (floor 1), fleet 1 in rest (floor 2), boss fleet is not in dorm.
+ROTATE_KEY_TO_TAB = {
+    3: 'training',
+    1: 'rest',
 }
 
 
@@ -234,39 +241,56 @@ def emotion_apply(emotion, result):
     config = emotion.config
     # Fleet order in user config, not the one swapped in this task
     order = config.cross_get(f'{config.task.command}.Fleet.FleetOrder', default='')
-    if order.endswith(AUTO_SWAP_SUFFIX):
-        order = order[:-len(AUTO_SWAP_SUFFIX)]
-    roles = FLEET_ORDER_ROLE.get(order)
-    if roles is None or any(role not in ROLE_TO_TAB for role in roles):
-        logger.warning(f'Emotion sync requires mob fleet and boss fleet, but fleet order is {order}')
-        return False
+    rotate = order == FLEET_ORDER_ROTATE and emotion.is_rotate
+    # Fleets switch roles in these modes, boss fleet is not always the one in training
+    switching = rotate or order.endswith(AUTO_SWAP_SUFFIX)
+    if rotate:
+        targets = [(fleet, ROTATE_KEY_TO_TAB[fleet.key]) for fleet in [emotion.fleet_3, emotion.fleet_1]]
+    else:
+        if order.endswith(AUTO_SWAP_SUFFIX):
+            order = order[:-len(AUTO_SWAP_SUFFIX)]
+        # Rotation disabled by invalid fleets, see AzurLaneConfig.bind()
+        if order == FLEET_ORDER_ROTATE:
+            order = 'fleet1_mob_fleet2_boss'
+        roles = FLEET_ORDER_ROLE.get(order)
+        if roles is None or any(role not in ROLE_TO_TAB for role in roles):
+            logger.warning(f'Emotion sync requires mob fleet and boss fleet, but fleet order is {order}')
+            return False
+        # Dorm is arranged for another task rotating mob fleet, training is its fleet 3, not the boss fleet
+        tasks = rotate_tasks(config.data, [fleet.number for fleet in emotion.fleets],
+                             exclude_task=config.task.command)
+        if tasks:
+            logger.warning(f'Dorm holds mob fleets of {tasks} rotating mob fleet 1 and 3, '
+                           f'skip emotion sync of {config.task.command}')
+            return False
+        targets = [(fleet, ROLE_TO_TAB[roles[fleet.fleet - 1]]) for fleet in emotion.fleets]
 
     emotion.update()
     settings = {}
     synced = {}
-    for fleet in emotion.fleets:
+    for fleet, tab in targets:
         if not fleet.number:
             continue
-        tab = ROLE_TO_TAB[roles[fleet.fleet - 1]]
         ship = result.get(tab)
         if ship is None:
             continue
         condition, speed = ship
-        logger.info(f'Emotion sync fleet {fleet.fleet} (game fleet {fleet.number}, {tab}): '
+        logger.info(f'Emotion sync fleet {fleet.key} (game fleet {fleet.number}, {tab}): '
                     f'{fleet.current} -> {condition}, {speed}/h')
         fleet.current = condition
         synced[str(fleet.number)] = {'value': condition, 'speed': speed, 'tab': tab}
         if speed in SPEED_TO_RECOVER:
             recover, oath = SPEED_TO_RECOVER[speed]
-            settings[f'Fleet{fleet.fleet}Recover'] = recover
-            settings[f'Fleet{fleet.fleet}Oath'] = oath
+            settings[f'Fleet{fleet.key}Recover'] = recover
+            settings[f'Fleet{fleet.key}Oath'] = oath
         else:
             logger.warning(f'Unknown recover speed {speed}/h, keep emotion recover settings')
     if not synced:
         logger.warning('Emotion sync failed, keep calculated emotion')
         return False
 
-    reversed_ = dorm_floor_reversed(result)
+    # Only meaningful when mob fleet and boss fleet are fixed
+    reversed_ = not switching and dorm_floor_reversed(result)
     if reversed_:
         logger.warning(f'Boss fleet in training ({result["training"][0]}) is lower than '
                        f'mob fleet in rest ({result["rest"][0]}), dorm floors may be reversed. '
