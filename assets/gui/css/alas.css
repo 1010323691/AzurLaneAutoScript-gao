@@ -455,74 +455,226 @@ pre.rich-traceback-code {
     margin: 0 0.625rem 0 !important;
 }
 
+/* Fleet presets: one compact toolbar above the status, controls share one height */
+#pywebio-scope-fleet_preset {
+    margin: 0 .375rem .5rem;
+    font-size: .875rem;
+}
+
+#pywebio-scope-fleet_preset .row,
+#pywebio-scope-fleet_preset .pywebio-row,
+#pywebio-scope-fleet_preset > div > div {
+    align-items: center;
+}
+
+#pywebio-scope-fleet_preset .form-group {
+    margin-bottom: .375rem;
+}
+
+#pywebio-scope-fleet_preset .form-control,
+#pywebio-scope-fleet_preset .custom-select {
+    height: 2rem;
+    padding: .125rem .5rem;
+    font-size: .875rem;
+}
+
+#pywebio-scope-fleet_preset .btn {
+    height: 2rem;
+    min-width: 4.5rem;
+    padding: 0 .75rem;
+    margin: 0 0 .375rem .375rem;
+    font-size: .875rem;
+    line-height: 2rem;
+    white-space: nowrap;
+}
+
+#pywebio-scope-fleet_preset_current {
+    margin-bottom: .25rem;
+}
+
+.preset-badge {
+    display: inline-block;
+    padding: .0625rem .5rem;
+    border-radius: 999px;
+    font-size: .75rem;
+    line-height: 1.25rem;
+}
+
+.preset-badge::before {
+    margin-right: .25rem;
+}
+
+.preset-badge.preset-ok::before {
+    content: "\2713";
+}
+
+.preset-badge.preset-warn::before {
+    content: "!";
+    font-weight: 700;
+}
+
 #pywebio-scope-sortie_status {
-    max-height: 14rem;
+    max-height: 18rem;
     overflow-y: auto;
 }
 
+/* One card per group of game fleets */
 .sortie-row {
-    margin: .125rem .375rem .375rem;
-    padding: .125rem .375rem;
-    border-left: 3px solid transparent;
-}
-
-.sortie-row.sortie-running {
-    border-left-color: #3f88c5;
-    background-color: rgba(63, 136, 197, .08);
+    margin: 0 .375rem .5rem;
+    padding: .375rem .625rem .5rem;
+    border-radius: .375rem;
+    border: 1px solid rgba(127, 127, 127, .25);
+    border-left-width: 3px;
 }
 
 .sortie-head {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    gap: 0 .5rem;
+    gap: .25rem .5rem;
+    padding: .125rem 0;
+}
+
+.sortie-head + .sortie-head {
+    border-top: 1px dashed rgba(127, 127, 127, .25);
 }
 
 .sortie-title {
-    font-size: 1rem;
-    font-weight: 500;
+    font-size: .9375rem;
+    font-weight: 400;
 }
 
+.sortie-title b {
+    font-weight: 600;
+}
+
+.sortie-tag {
+    padding: 0 .375rem;
+    border-radius: .25rem;
+    border: 1px solid rgba(127, 127, 127, .4);
+    font-size: .75rem;
+    line-height: 1.125rem;
+}
+
+/* State pill on the right, text keeps the meaning and color helps scanning */
 .sortie-state {
-    font-size: .875rem;
+    margin-left: auto;
+    padding: 0 .5rem;
+    border-radius: 999px;
+    font-size: .8125rem;
+    line-height: 1.375rem;
+    white-space: nowrap;
+    background-color: rgba(127, 127, 127, .15);
+}
+
+.sortie-head.sortie-battle .sortie-state,
+.sortie-head.sortie-running .sortie-state {
+    background-color: rgba(63, 136, 197, .16);
 }
 
 .sortie-head.sortie-emotion_wait .sortie-state,
-.sortie-head.sortie-emotion_delay .sortie-state {
-    color: #d29922;
+.sortie-head.sortie-emotion_delay .sortie-state,
+.sortie-head.sortie-oil_limit .sortie-state {
+    background-color: rgba(210, 153, 34, .18);
 }
 
-.sortie-head.sortie-defeat .sortie-state,
-.sortie-head.sortie-oil_limit .sortie-state {
-    color: #e5534b;
+.sortie-head.sortie-defeat .sortie-state {
+    background-color: rgba(229, 83, 75, .18);
+}
+
+.sortie-fleets {
+    margin: .25rem 0 .125rem;
 }
 
 /* Fixed columns, so bars stay aligned when role text changes, e.g. Mob -> Mob · Fighting */
 .sortie-fleet {
     display: grid;
     /* Track sizes do not depend on content, columns are the same in every row */
-    grid-template-columns: minmax(3.5rem, 4.5rem) minmax(4.5rem, 7.5rem) minmax(2rem, 10rem) 4.5rem 3.5rem;
+    grid-template-columns: 4.25rem 7.5rem minmax(3rem, 1fr) 4.5rem 3.5rem;
     align-items: center;
-    gap: 0 .5rem;
+    gap: 0 .625rem;
+    min-height: 1.75rem;
     font-size: .875rem;
-    margin-left: .75rem;
+    border-radius: .25rem;
 }
 
-.sortie-name,
-.sortie-role {
+.sortie-name {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.sortie-novalue {
-    grid-column: 3 / span 3;
+.sortie-role {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
-.sortie-fighting .sortie-name,
-.sortie-fighting .sortie-role {
+.sortie-pill {
+    padding: 0 .4375rem;
+    border-radius: .25rem;
+    font-size: .8125rem;
+    line-height: 1.25rem;
+}
+
+.sortie-mark {
+    padding: 0 .3125rem;
+    border-radius: .25rem;
+    border: 1px solid currentColor;
+    font-size: .6875rem;
+    line-height: 1rem;
+    opacity: .85;
+}
+
+.sortie-mark-live {
+    display: inline-flex;
+    align-items: center;
+    gap: .25rem;
+    border-color: transparent;
+    opacity: 1;
+}
+
+.sortie-mark-live::before {
+    content: "";
+    width: .4375rem;
+    height: .4375rem;
+    border-radius: 50%;
+    background-color: currentColor;
+    animation: sortie-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes sortie-pulse {
+    50% {
+        opacity: .35;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sortie-mark-live::before {
+        animation: none;
+    }
+}
+
+.sortie-fighting {
+    background-color: rgba(63, 136, 197, .1);
+}
+
+.sortie-fighting .sortie-name {
     font-weight: 600;
-    color: #3f88c5;
+}
+
+.sortie-resting .sortie-name,
+.sortie-resting .sortie-value,
+.sortie-resting .sortie-bar {
+    opacity: .6;
+}
+
+.sortie-novalue {
+    grid-column: 3 / span 3;
+    font-size: .8125rem;
+    opacity: .7;
 }
 
 .sortie-bar {
@@ -530,7 +682,7 @@ pre.rich-traceback-code {
     display: block;
     height: .5rem;
     border-radius: .25rem;
-    background-color: rgba(127, 127, 127, .25);
+    background-color: rgba(127, 127, 127, .22);
 }
 
 .sortie-fill {
@@ -539,48 +691,83 @@ pre.rich-traceback-code {
     top: 0;
     height: 100%;
     border-radius: .25rem;
+    transition: width .3s ease-out;
 }
 
 .sortie-fill.sortie-ok {
     background-color: #4caf50;
 }
 
+.sortie-fill.sortie-near {
+    background-color: #d29922;
+}
+
 .sortie-fill.sortie-low {
     background-color: #e5534b;
 }
 
+/* Emotion control limit */
 .sortie-limit {
     position: absolute;
-    top: -.125rem;
+    top: -.1875rem;
     width: 2px;
-    height: .75rem;
-    background-color: rgba(127, 127, 127, .9);
+    height: .875rem;
+    border-radius: 1px;
+    background-color: currentColor;
+    opacity: .55;
 }
 
 .sortie-value {
     text-align: right;
     font-family: Menlo, consolas, DejaVu Sans Mono, Courier New, monospace;
-    font-size: .8rem;
+    font-size: .8125rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.sortie-value small {
+    font-size: .6875rem;
+    opacity: .6;
+}
+
+.sortie-value.sortie-value-low {
+    color: #e5534b;
+    font-weight: 600;
 }
 
 .sortie-speed {
     font-size: .75rem;
-    color: #4caf50;
+    opacity: .65;
+    white-space: nowrap;
 }
 
-.sortie-head-running .sortie-title {
-    color: #3f88c5;
+.sortie-warn {
+    margin: .375rem 0 .25rem;
+    padding: .25rem .5rem .25rem 1.5rem;
+    border-radius: .25rem;
+    border-left: 3px solid #e5534b;
+    background-color: rgba(229, 83, 75, .1);
+    color: #e5534b;
+    font-size: .8125rem;
+    list-style: none;
+    position: relative;
+}
+
+.sortie-warn::before {
+    content: "!";
+    position: absolute;
+    left: .5rem;
+    top: .25rem;
+    font-weight: 700;
+}
+
+.sortie-warn li + li {
+    margin-top: .125rem;
 }
 
 .sortie-note {
     font-size: .75rem;
-    color: darkgrey;
-    margin-left: .75rem;
-}
-
-.sortie-note.sortie-warn {
-    color: #e5534b;
-    font-size: .875rem;
+    line-height: 1.125rem;
+    opacity: .7;
 }
 
 [id^="pywebio-scope-overview-task_"] {

@@ -3126,6 +3126,7 @@
       "DormMismatch": "第 {number} 舰队心情回复应为「{expected}」，当前为「{actual}」",
       "RotateInvalid": "舰队职能选了「道中1、3队轮换」，但三队编号未设置或与一、二队重复，轮换未生效，按两队运行",
       "NextMob": "下次",
+      "EmotionTip": "心情 {value}/{max}，心情控制下限 {limit}（竖线）",
       "NoEmotion": "未开启心情计算"
     },
     "Preset": {

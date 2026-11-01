@@ -3126,6 +3126,7 @@
       "DormMismatch": "第{number}艦隊の気分回復は「{expected}」にすべきですが、現在は「{actual}」です",
       "RotateInvalid": "艦隊の役割は「道中1・3艦隊ローテーション」ですが、第三艦隊番号が未設定か第一・第二艦隊と重複しているため、2艦隊で動作します",
       "NextMob": "次回",
+      "EmotionTip": "気分 {value}/{max}、気分管理の下限 {limit}（縦線）",
       "NoEmotion": "コンディション計算オフ"
     },
     "Preset": {

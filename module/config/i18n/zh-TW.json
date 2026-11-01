@@ -3126,6 +3126,7 @@
       "DormMismatch": "第 {number} 艦隊心情回復應為「{expected}」，目前為「{actual}」",
       "RotateInvalid": "艦隊職能選了「道中1、3隊輪換」，但三隊編號未設定或與一、二隊重複，輪換未生效，按兩隊運行",
       "NextMob": "下次",
+      "EmotionTip": "心情 {value}/{max}，心情控制下限 {limit}（豎線）",
       "NoEmotion": "未開啟心情計算"
     },
     "Preset": {

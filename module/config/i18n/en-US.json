@@ -3126,6 +3126,7 @@
       "DormMismatch": "Fleet {number} emotion recover should be \"{expected}\", now \"{actual}\"",
       "RotateInvalid": "Fleet order rotates mob fleet 1 and 3, but fleet 3 is not set or same as fleet 1 or 2, running with two fleets",
       "NextMob": "Next",
+      "EmotionTip": "Emotion {value}/{max}, control limit {limit} (the mark)",
       "NoEmotion": "Emotion calculation off"
     },
     "Preset": {
