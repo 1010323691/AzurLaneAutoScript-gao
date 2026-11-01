@@ -531,12 +531,13 @@ class CampaignMap:
                  range(self.shape[0] + 1)])
             logger.info(text)
 
-    def find_path_initial(self, location, has_ambush=True, has_enemy=True):
+    def find_path_initial(self, location, has_ambush=True, has_enemy=True, blocked=()):
         """
         Args:
             location (tuple(int)): Grid location
             has_ambush (bool): MAP_HAS_AMBUSH
             has_enemy (bool): False if only sea and land are considered
+            blocked (list[tuple(int)]): Grid locations that are treated as land
         """
         location = location_ensure(location)
         ambush_cost = 10 if has_ambush else 1
@@ -553,7 +554,7 @@ class CampaignMap:
             for grid in visited:
                 for arr in self.grid_connection[grid.location]:
                     arr = self[arr]
-                    if arr.is_land or arr.is_mechanism_block:
+                    if arr.is_land or arr.is_mechanism_block or arr.location in blocked:
                         continue
                     cost = ambush_cost if arr.may_ambush else 1
                     cost += grid.cost
@@ -573,18 +574,20 @@ class CampaignMap:
         # self.show_cost()
         # self.show_connection()
 
-    def find_path_initial_multi_fleet(self, location_dict, current, has_ambush):
+    def find_path_initial_multi_fleet(self, location_dict, current, has_ambush, blocked=None):
         """
         Args:
             location_dict (dict): Key: int, fleet index. Value: tuple(int), grid location.
             current (tuple): Current location.
             has_ambush (bool): MAP_HAS_AMBUSH
+            blocked (dict): Key: int, fleet index. Value: list of grid locations that the fleet can't reach.
         """
         location_dict = sorted(location_dict.items(), key=lambda kv: (int(kv[1] == current),))
         for fleet, location in location_dict:
             if location == ():
                 continue
-            self.find_path_initial(location, has_ambush=has_ambush)
+            self.find_path_initial(location, has_ambush=has_ambush,
+                                   blocked=blocked.get(fleet, ()) if blocked else ())
             attr = f'cost_{fleet}'
             for grid in self:
                 grid.__setattr__(attr, grid.cost)
