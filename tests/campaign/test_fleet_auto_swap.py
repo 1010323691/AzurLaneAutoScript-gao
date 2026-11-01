@@ -2,7 +2,7 @@
 import json
 import os
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 from module.combat.emotion import Emotion
@@ -152,6 +152,21 @@ class FakeClearAllCampaign:
     def __init__(self, config):
         self.config = config
         self.emotion = Emotion(config)
+        self.cancelled = False
+
+    def enter_map_cancel(self):
+        self.cancelled = True
+
+    def clear_all(self):
+        """
+        Returns:
+            str: 'enter' or 'delay'
+        """
+        try:
+            self.handle_clear_all_emotion()
+            return 'enter'
+        except ScriptEnd:
+            return 'delay'
 
 
 class TestClearAllEmotion(unittest.TestCase):
@@ -175,10 +190,45 @@ class TestClearAllEmotion(unittest.TestCase):
         self.assertEqual(c.Fleet_FleetOrder, 'fleet1_boss_fleet2_mob')
         self.assertEqual(c.delays, [])
 
-    def test_both_low_keeps_order_without_delay(self):
-        c = FakeCampaignConfig(51, 55)
-        FakeClearAllCampaign(c).handle_clear_all_emotion()
+    def test_both_low_delays_without_entering(self):
+        # Real case: 6-1 to get 3 stars, 10 battles, fleet 1 has 44 and fleet 2 has 50, control limit 40.
+        # Entered map and waited in map before, now cancel map preparation and delay
+        c = FakeCampaignConfig(44, 50)
+        c.FLEET_BOSS = 2
+        campaign = FakeClearAllCampaign(c)
+        campaign.MAP = type('MAP', (), {'_spawn_data': [{'battle': i, 'enemy': 2} for i in range(4)]
+                                                       + [{'battle': 4, 'enemy': 1, 'boss': 1}]})
+        self.assertEqual(campaign._map_battle_clear_all, 10)
+        self.assertEqual(campaign.clear_all(), 'delay')
+        self.assertTrue(campaign.cancelled)
         self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
+        self.assertEqual(len(c.delays), 1)
+        # Swapped, fleet 2 as mob fleet needs 18 + 40, recovers 2 per 6 min when not in dormitory: 4 * 6 min
+        recovered = c.delays[0]['target']
+        self.assertTrue(datetime.now() + timedelta(minutes=23) <= recovered <= datetime.now() + timedelta(minutes=30))
+
+    def test_enough_enters(self):
+        c = FakeCampaignConfig(58, 50)
+        campaign = FakeClearAllCampaign(c)
+        self.assertEqual(campaign.clear_all(), 'enter')
+        self.assertFalse(campaign.cancelled)
+        self.assertEqual(c.delays, [])
+
+    def test_never_enough_waits_in_map(self):
+        # 2x book, 16 battles = 64 emotion, can't keep happy bonus (120) under max 119 of docks
+        c = FakeCampaignConfig(119, 119, control='prevent_green_face')
+        c.Campaign_Use2xBook = True
+        campaign = FakeClearAllCampaign(c)
+        campaign.MAP = type('MAP', (), {'_spawn_data': [{'battle': i, 'enemy': 5} for i in range(4)]})
+        self.assertEqual(campaign._map_battle_clear_all, 21)
+        self.assertEqual(campaign.clear_all(), 'enter')
+        self.assertFalse(campaign.cancelled)
+        self.assertEqual(c.delays, [])
+
+    def test_not_calculate(self):
+        c = FakeCampaignConfig(44, 50, mode='ignore')
+        campaign = FakeClearAllCampaign(c)
+        self.assertEqual(campaign.clear_all(), 'enter')
         self.assertEqual(c.delays, [])
 
     def test_not_clear_all(self):
@@ -200,10 +250,14 @@ class TestClearAllEmotion(unittest.TestCase):
         self.assertEqual(c.Fleet_FleetOrder, 'fleet1_boss_fleet2_mob')
 
     def test_not_auto_swap(self):
+        # Not swapped, but still delayed if mob fleet is not enough for clearing all
         c = FakeCampaignConfig(51, 117, auto_swap=False)
-        FakeClearAllCampaign(c).handle_clear_all_emotion()
+        campaign = FakeClearAllCampaign(c)
+        self.assertEqual(campaign.clear_all(), 'delay')
+        self.assertTrue(campaign.cancelled)
         self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
-        self.assertEqual(c.delays, [])
+        c = FakeCampaignConfig(57, 117, auto_swap=False)
+        self.assertEqual(FakeClearAllCampaign(c).clear_all(), 'enter')
 
 
 class TestConfigBindAutoSwap(unittest.TestCase):
