@@ -18,7 +18,7 @@ FLEET_ORDER_SWAP = {
     'fleet1_boss_fleet2_mob': 'fleet1_mob_fleet2_boss',
 }
 # Fleet orders that fleet 1 fights mobs, used when Fleet.FleetOrder is fleet1_mob_fleet2_boss_fleet3_rotate
-FLEET_ORDER_ROTATE = ['fleet1_mob_fleet2_boss', 'fleet1_all_fleet2_standby']
+ROTATE_FLEET_ORDERS = ['fleet1_mob_fleet2_boss', 'fleet1_all_fleet2_standby']
 
 
 class FleetEmotion:
@@ -211,7 +211,7 @@ class Emotion:
             bool: If mob fleet is rotated between fleet 1 and fleet 3 according to emotion.
         """
         return getattr(self.config, 'FLEET_ORDER_ROTATE', False) \
-            and self.config.Fleet_FleetOrder in FLEET_ORDER_ROTATE
+            and self.config.Fleet_FleetOrder in ROTATE_FLEET_ORDERS
 
     @property
     def fleets(self):

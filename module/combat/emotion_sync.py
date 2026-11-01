@@ -4,7 +4,7 @@ from datetime import datetime
 from module.base.button import ButtonGrid
 from module.base.timer import Timer
 from module.campaign.sortie_status import (AUTO_SWAP_SUFFIX, EMOTION_SYNC_KEY, FLEET_ORDER_ROLE, FLEET_ORDER_ROTATE,
-                                           status_update)
+                                           rotate_tasks, status_update)
 from module.dorm.assets import DORM_TAB_REST, DORM_TAB_TRAINING, DORM_TRAINING_CLOSE, DORM_TRAINING_ENTER
 from module.logger import logger
 from module.ocr.ocr import Digit, Ocr
@@ -253,6 +253,13 @@ def emotion_apply(emotion, result):
         roles = FLEET_ORDER_ROLE.get(order)
         if roles is None or any(role not in ROLE_TO_TAB for role in roles):
             logger.warning(f'Emotion sync requires mob fleet and boss fleet, but fleet order is {order}')
+            return False
+        # Dorm is arranged for another task rotating mob fleet, training is its fleet 3, not the boss fleet
+        tasks = rotate_tasks(config.data, [fleet.number for fleet in emotion.fleets],
+                             exclude_task=config.task.command)
+        if tasks:
+            logger.warning(f'Dorm holds mob fleets of {tasks} rotating mob fleet 1 and 3, '
+                           f'skip emotion sync of {config.task.command}')
             return False
         targets = [(fleet, ROLE_TO_TAB[roles[fleet.fleet - 1]]) for fleet in emotion.fleets]
 

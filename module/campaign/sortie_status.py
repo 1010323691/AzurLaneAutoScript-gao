@@ -158,6 +158,29 @@ def fleet_keys(fleet):
     return [1, 2]
 
 
+def rotate_tasks(config_data, numbers, exclude_task=None):
+    """
+    Dorm holds the mob fleets of a task rotating mob fleet, instead of a mob fleet and a boss fleet.
+
+    Args:
+        config_data (dict): User config, AzurLaneConfig.data
+        numbers (list[int]): Game fleet numbers
+        exclude_task (str):
+
+    Returns:
+        list[str]: Enabled tasks rotating mob fleet, which use any of the game fleets.
+    """
+    tasks = []
+    for task, data in config_data.items():
+        if task == exclude_task or not isinstance(data, dict) or not isinstance(data.get('Fleet'), dict):
+            continue
+        if not data.get('Scheduler', {}).get('Enable', False) or not is_rotate(data['Fleet']):
+            continue
+        if any(data['Fleet'].get(f'Fleet{key}') in numbers for key in [1, 2, 3]):
+            tasks.append(task)
+    return tasks
+
+
 def emotion_slots(config_data, number, exclude_task=None):
     """
     Emotion belongs to the game fleet, tasks using the same game fleet share it.
@@ -475,20 +498,32 @@ def build_groups(config_data, status, running_task=None, now=None):
         for group in groups:
             if group['numbers'] == numbers:
                 break
+            # A task rotating mob fleet uses fleet 3 besides the fleet 1 and 2 shared with other tasks
+            if row['rotate'] or group['dorm'] == 3:
+                if set(numbers) <= set(group['numbers']) or set(numbers) >= set(group['numbers']):
+                    break
         else:
             group = {'numbers': numbers, 'tasks': [], 'fleets': row['fleets'], 'synced': None,
-                     'reversed': False, 'dorm': None}
+                     'reversed': False, 'dorm': None, '_widest': row['fleets']}
             groups.append(group)
         group['tasks'].append(row)
+        if len(numbers) > len(group['numbers']):
+            group['numbers'] = numbers
+            group['_widest'] = row['fleets']
         # Fleet roles and the fighting fleet of the running task
         if row['running']:
             group['fleets'] = row['fleets']
+        elif not any(task['running'] for task in group['tasks']):
+            group['fleets'] = group['_widest']
         roles = {fleet['role'] for fleet in row['fleets']}
         if row['rotate']:
             group['dorm'] = 3
         elif group['dorm'] is None and 'boss' in roles and 'mob' in roles:
             group['dorm'] = 2
     for group in groups:
+        # Each fleet is shown once, fleets not used by the running task are shown as well
+        shown = [fleet['number'] for fleet in group['fleets']]
+        group['fleets'] = group['fleets'] + [f for f in group.pop('_widest') if f['number'] not in shown]
         if any(str(number) in synced_fleets for number in group['numbers']):
             group['synced'] = _to_datetime(sync.get('time'))
             # Both dorm tabs are fleets of this group

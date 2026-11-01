@@ -325,13 +325,19 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         self.emotion.update()
         for fleet in fleets:
             if fleet.current > self.LOW_EMOTION_POPUP_VALUE:
-                logger.warning(f'Low emotion popup, correct emotion of fleet {fleet.fleet}: '
+                logger.warning(f'Low emotion popup, correct emotion of fleet {fleet.key}: '
                                f'{fleet.current} -> {self.LOW_EMOTION_POPUP_VALUE}')
                 fleet.current = self.LOW_EMOTION_POPUP_VALUE
         self.emotion.record()
 
         # Delay until emotion is enough for this map, raise ScriptEnd
         self.emotion.check_reduce(self._map_battle)
+        # Mob fleet may be rotated to the other one, fleets in popup no longer sortie
+        fleets = [fleet for fleet in fleets if fleet in self.emotion.fleets]
+        if not fleets:
+            logger.info('Mob fleet rotated, sortie again')
+            self.config.task_delay(minute=0)
+            raise ScriptEnd('Emotion control')
         # Still enough for some fleet order, but fleets in popup need to recover anyway
         recovered = max(fleet.get_recovered(self.emotion.reduce_per_battle) for fleet in fleets)
         logger.info('Delay current task to prevent emotion control in the future')

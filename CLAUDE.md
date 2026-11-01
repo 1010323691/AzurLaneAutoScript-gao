@@ -69,8 +69,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 解析：`AzurLaneConfig.bind()` 设 `FLEET_ORDER_ROTATE=True`、`FLEET_ROTATE_BASE`（用户配置里的 `Fleet.Fleet1`），职能改写成 `fleet1_mob_fleet2_boss`。1、2、3 队编号必须都非 0 且互不相同，否则 warning 并按普通两队运行（`sortie_status.is_rotate()` 判断条件相同）。
      - 选队：`Emotion.check_reduce()` → `check_rotate()`，第 1、3 队里心情够这张图、且当前心情更高的那队当道中（`rotate_to()` 用 `override(Fleet_Fleet1=<游戏编号>)`，编队界面自然选中它）；Boss 队按自动互换同样的 `relax_boss` 放宽；都不够时换到较早恢复的那队并推迟。`check_swap` / `check_clear_all` 同样支持。轮换时禁用继续出击。
      - 心情：`FleetEmotion` 新增 `key`（读哪组 `Emotion.Fleet{key}*`），`fleet` 仍是出击槽位。第 3 队是 `Emotion.fleet_3`（槽位 1、key 3）；`Emotion.fleets` 是属性，按当前 `Fleet_Fleet1` 返回 `[槽位 1 的道中队, fleet_2]`，所以 `wait / reduce` / 低心情校正不用改；`all_fleets` 含轮休的那队，`update / record / show` 用它。心情共用（`emotion_slots`）只在轮换任务里把 Fleet3 算进去。
-     - 寮舍同步：轮换时「訓練」页（1 层）写第 3 队、「休憩」页（2 层）写第 1 队，Boss 第 2 队不在寮舍、不同步，也不做「放反」判断。
-     - 面板：标题加「道中轮换」，三队各一行（运行中按状态文件的 `mob` 字段标出这次出击的道中队，另一队标「轮休」）；每组底部显示寮舍摆放提醒（两队：Boss 1 层、道中 2 层；三队：第 3 队 1 层、第 1 队 2 层），即 `build_groups` 的 `dorm`。
+     - 寮舍同步：轮换时「訓練」页（1 层）写第 3 队、「休憩」页（2 层）写第 1 队，Boss 第 2 队不在寮舍、不同步，也不做「放反」判断。开着的轮换任务与其他任务共用游戏舰队时，其他（非轮换）任务跳过寮舍同步（`rotate_tasks`）：寮舍是按轮换摆的，訓練页是第 3 队，不是 Boss 队。
+     - 低心情弹窗：撤退后 `check_reduce` 若已轮换到另一支够心情的道中队，弹窗那队不再出击，`handle_low_emotion_withdraw` 改为 `task_delay(minute=0)` 立即重新出击，不按弹窗那队的恢复时间推迟。
+     - 面板：标题加「道中轮换」，三队各一行（运行中按状态文件的 `mob` 字段标出这次出击的道中队，另一队标「轮休」）；轮换任务和共用其 1、2 队的任务合成一组、每队只显示一次；每组底部显示寮舍摆放提醒（两队：Boss 1 层、道中 2 层；三队：第 3 队 1 层、第 1 队 2 层），即 `build_groups` 的 `dorm`。
      - 第 3 队的阵型、自律模式、步数沿用第 1 队的设置（`Fleet1Formation / Mode / Step` 按槽位生效）。还没在真机上跑过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 

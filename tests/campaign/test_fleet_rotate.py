@@ -105,7 +105,7 @@ class TestEmotionRotate(unittest.TestCase):
         self.assertEqual(c.Emotion_Fleet3Value, 98)
         self.assertEqual(c.Emotion_Fleet1Value, 60)
         # A new Emotion object follows the overridden Fleet_Fleet1
-        self.assertIs(Emotion(c).fleets[0].key, 3)
+        self.assertEqual(Emotion(c).fleets[0].key, 3)
 
     def test_rotate_disabled_ignores_fleet3(self):
         c = FakeConfig(30, 119, 100, rotate=False)
@@ -127,6 +127,35 @@ class TestEmotionRotate(unittest.TestCase):
         c = FakeConfig(30, 119, 40)
         with self.assertRaises(ScriptEnd):
             Emotion(c).check_clear_all(10)
+
+
+class TestLowEmotionRotate(unittest.TestCase):
+    def make(self, v1, v3):
+        from tests.campaign.test_low_emotion import FakeLowEmotionCampaign
+        config = FakeConfig(v1, 119, v3)
+        config.Fleet_Fleet1 = 3
+        campaign = FakeLowEmotionCampaign(config, ['in_map'])
+        campaign.low_emotion_withdraw = True
+        campaign.low_emotion_in_map = True
+        campaign.fleet_show_index = 1
+        return campaign
+
+    def test_rotated_sortie_again(self):
+        # Fleet 3 in popup, fleet 1 is enough, no need to wait fleet 3
+        campaign = self.make(v1=119, v3=60)
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertTrue(campaign.withdrawn)
+        self.assertEqual(campaign.config.Emotion_Fleet3Value, 30)
+        self.assertEqual(campaign.config.Emotion_Fleet1Value, 119)
+        self.assertEqual(campaign.config.Fleet_Fleet1, 1)
+        self.assertEqual(campaign.config.delays[-1], {'minute': 0})
+
+    def test_neither_enough_delay(self):
+        campaign = self.make(v1=40, v3=60)
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertGreater(campaign.config.delays[-1]['target'], datetime.now())
 
 
 class ConfigTestBase(unittest.TestCase):
@@ -216,6 +245,27 @@ class TestConfigBindRotate(ConfigTestBase):
         self.assertFalse(sync['reversed'])
 
 
+class TestEmotionApplySharedRotate(ConfigTestBase):
+    def test_skip_when_dorm_for_rotate(self):
+        data = read_file(self.path)
+        data['Main']['Scheduler']['Enable'] = True
+        data['Event']['Fleet']['FleetOrder'] = 'fleet1_mob_fleet2_boss'
+        with open(self.path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, default=str)
+        before = read_file(self.path)['Event']['Emotion']['Fleet2Value']
+        self.assertFalse(emotion_apply(Emotion(self.config('Event')), {'training': (33, 40), 'rest': (44, 50)}))
+        self.assertEqual(read_file(self.path)['Event']['Emotion']['Fleet2Value'], before)
+
+    def test_sync_when_rotate_disabled(self):
+        data = read_file(self.path)
+        data['Main']['Scheduler']['Enable'] = False
+        data['Event']['Fleet']['FleetOrder'] = 'fleet1_mob_fleet2_boss'
+        with open(self.path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, default=str)
+        self.assertTrue(emotion_apply(Emotion(self.config('Event')), {'training': (33, 40), 'rest': (44, 50)}))
+        self.assertEqual(read_file(self.path)['Event']['Emotion']['Fleet2Value'], 33)
+
+
 class TestConfigBindRotateInvalid(ConfigTestBase):
     fleet3 = 0
 
@@ -267,6 +317,20 @@ class TestSortieStatusRotate(unittest.TestCase):
         row = build_rows({'Main': task_data(fleet3=2)}, {}, now=NOW)[0]
         self.assertFalse(row['rotate'])
         self.assertEqual([f['number'] for f in row['fleets']], [1, 2])
+
+    def test_shared_fleets_shown_once(self):
+        data = {'Main': task_data(), 'Event': task_data(order='fleet1_mob_fleet2_boss')}
+        groups = build_groups(data, {}, now=NOW)
+        self.assertEqual(len(groups), 1)
+        self.assertEqual([f['number'] for f in groups[0]['fleets']], [1, 2, 3])
+        self.assertEqual(groups[0]['dorm'], 3)
+        # Running task without fleet 3 shows its roles, fleet 3 is still shown
+        status = {'Event': {'state': 'battle', 'fleet': 2}}
+        groups = build_groups(data, status, running_task='Event', now=NOW)
+        self.assertEqual(len(groups), 1)
+        fleets = groups[0]['fleets']
+        self.assertEqual([f['number'] for f in fleets], [1, 2, 3])
+        self.assertTrue(fleets[1]['fighting'])
 
     def test_dorm_hint(self):
         groups = build_groups({'Main': task_data()}, {}, now=NOW)
