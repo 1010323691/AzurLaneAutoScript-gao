@@ -3067,6 +3067,7 @@
       "StateEmotionWait": "マップ内で第 {fleet} 艦隊のコンディション待ち、{time} 回復予定",
       "StateEmotionDelay": "コンディション不足、{time} に再開予定",
       "StateDefeat": "敗北撤退、{time} に再試行",
+      "StateOilLimit": "燃料不足（{oil}、下限 {limit}）、{time} に再試行",
       "StateWaiting": "次回出撃 {time}",
       "StatePending": "時間到達、実行待ち",
       "Fleet": "第 {number} 艦隊",

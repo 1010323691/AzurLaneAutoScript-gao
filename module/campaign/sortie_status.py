@@ -304,7 +304,7 @@ def _fleet_rows(config_data, data, order, now):
 def _task_state(status, is_running, next_run, now):
     """
     Returns:
-        dict: state: running, battle, emotion_wait, emotion_delay, defeat, pending, waiting
+        dict: state: running, battle, emotion_wait, emotion_delay, defeat, oil_limit, pending, waiting
             and arguments of the state.
     """
     state = status.get('state')
@@ -322,8 +322,10 @@ def _task_state(status, is_running, next_run, now):
             }
         return {'state': 'running'}
     # Task delay of this reason is the NextRun, unless NextRun was changed later, e.g. by user
-    if state in ['emotion_delay', 'defeat'] and until is not None and next_run is not None \
+    if state in ['emotion_delay', 'defeat', 'oil_limit'] and until is not None and next_run is not None \
             and abs((next_run - until).total_seconds()) < 60 and next_run > now:
+        if state == 'oil_limit':
+            return {'state': state, 'until': until, 'oil': status.get('oil'), 'oil_limit': status.get('oil_limit')}
         return {'state': state, 'until': until}
     if next_run is not None and next_run <= now:
         return {'state': 'pending'}

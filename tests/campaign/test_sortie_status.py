@@ -90,6 +90,41 @@ class TestStatusFile(unittest.TestCase):
         status_update(config, reset=True, state='map', battle=0)
         self.assertNotIn('stage', status_read('zz_test_sortie')['Main'])
 
+    def test_oil_limit_delay(self):
+        # Real case: auto search stopped at oil 928 < OilLimit 1000, Main delayed 2~4 hours
+        from module.campaign.run import CampaignRun
+
+        class FakeCampaign:
+            auto_search_oil_limit_triggered = True
+            auto_search_oil = 928
+
+        class FakeRunConfig(FakeConfig):
+            StopCondition_OilLimit = 1000
+            StopCondition_ReachLevel = 0
+
+            def task_delay(self, **kwargs):
+                self.delay = kwargs
+
+        run = CampaignRun.__new__(CampaignRun)
+        run.config = FakeRunConfig('Main')
+        run.campaign = FakeCampaign()
+        run.run_limit = 0
+        before = datetime.now().replace(microsecond=0)
+        self.assertTrue(run.triggered_stop_condition(oil_check=False))
+        until = run.config.delay['target']
+        self.assertTrue(before + timedelta(minutes=120) <= until <= datetime.now() + timedelta(minutes=240))
+        data = status_read('zz_test_sortie')['Main']
+        self.assertEqual(data['state'], 'oil_limit')
+        self.assertEqual(data['until'], until.strftime('%Y-%m-%d %H:%M:%S'))
+        self.assertEqual((data['oil'], data['oil_limit']), (928, 1000))
+        # Oil limit is at least 500
+        run.config.StopCondition_OilLimit = 0
+        run.oil_limit_delay(300)
+        self.assertEqual(status_read('zz_test_sortie')['Main']['oil_limit'], 500)
+        # Sortie again, entering map drops it
+        status_update(run.config, reset=True, state='map', battle=0)
+        self.assertEqual(status_read('zz_test_sortie')['Main'].get('state'), 'map')
+
     def test_no_task(self):
         config = FakeConfig()
         del config.task
@@ -154,6 +189,19 @@ class TestBuildRows(unittest.TestCase):
         self.assertFalse(row['running'])
         # Order of previous sortie is not shown when not running
         self.assertEqual([f['role'] for f in row['fleets']], ['mob', 'boss'])
+
+    def test_oil_limit(self):
+        status = {'Main': {'state': 'oil_limit', 'until': '2026-10-31 18:48:00', 'oil': 928, 'oil_limit': 1000}}
+        row = build_rows({'Main': task_data()}, status, now=NOW)[0]
+        self.assertEqual(row['state'], 'oil_limit')
+        self.assertEqual(format_time(row['until'], now=NOW), '18:48')
+        self.assertEqual((row['oil'], row['oil_limit']), (928, 1000))
+        # Running again, not shown even before entering map
+        row = build_rows({'Main': task_data()}, status, running_task='Main', now=NOW)[0]
+        self.assertEqual(row['state'], 'running')
+        # NextRun changed, e.g. by user
+        row = build_rows({'Main': task_data(next_run='2026-10-31 18:20:00')}, status, now=NOW)[0]
+        self.assertEqual(row['state'], 'waiting')
 
     def test_next_run_changed(self):
         # NextRun changed after emotion delay, e.g. by user
