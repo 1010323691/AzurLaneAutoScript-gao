@@ -110,7 +110,9 @@ const createWindow = async () => {
   });
 
   // Tray
-  const tray = new Tray(path.join(__dirname, 'icon.png'));
+  // macOS doesn't scale tray icons and draws menu bar icons in black and white.
+  // Electron treats iconTemplate.png as a template image and loads @2x on retina displays.
+  const tray = new Tray(path.join(__dirname, process.platform === 'darwin' ? 'iconTemplate.png' : 'icon.png'));
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'Show',
