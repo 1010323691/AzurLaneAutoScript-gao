@@ -87,7 +87,14 @@ class TestEmotionApply(ConfigTestBase):
         status = sortie_status.status_read(self.name)[sortie_status.EMOTION_SYNC_KEY]
         self.assertEqual(status['fleets']['1'], {'value': 44, 'speed': 50, 'tab': 'rest'})
         self.assertEqual(status['fleets']['2'], {'value': 33, 'speed': 40, 'tab': 'training'})
+        # Boss fleet lower than mob fleet, but fleets switch roles in auto swap
+        self.assertFalse(status['reversed'])
+
+    def test_reversed_fixed_order(self):
         # Boss fleet lower than mob fleet
+        self.config('Main').cross_set('Main.Fleet.FleetOrder', 'fleet1_mob_fleet2_boss')
+        self.assertTrue(emotion_apply(Emotion(self.config('Main')), RESULT))
+        status = sortie_status.status_read(self.name)[sortie_status.EMOTION_SYNC_KEY]
         self.assertTrue(status['reversed'])
 
     def test_not_reversed(self):

@@ -242,6 +242,8 @@ def emotion_apply(emotion, result):
     # Fleet order in user config, not the one swapped in this task
     order = config.cross_get(f'{config.task.command}.Fleet.FleetOrder', default='')
     rotate = order == FLEET_ORDER_ROTATE and emotion.is_rotate
+    # Fleets switch roles in these modes, boss fleet is not always the one in training
+    switching = rotate or order.endswith(AUTO_SWAP_SUFFIX)
     if rotate:
         targets = [(fleet, ROTATE_KEY_TO_TAB[fleet.key]) for fleet in [emotion.fleet_3, emotion.fleet_1]]
     else:
@@ -287,8 +289,8 @@ def emotion_apply(emotion, result):
         logger.warning('Emotion sync failed, keep calculated emotion')
         return False
 
-    # Both tabs are mob fleets when rotating, no boss fleet to compare with
-    reversed_ = not rotate and dorm_floor_reversed(result)
+    # Only meaningful when mob fleet and boss fleet are fixed
+    reversed_ = not switching and dorm_floor_reversed(result)
     if reversed_:
         logger.warning(f'Boss fleet in training ({result["training"][0]}) is lower than '
                        f'mob fleet in rest ({result["rest"][0]}), dorm floors may be reversed. '

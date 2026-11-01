@@ -528,8 +528,10 @@ def build_groups(config_data, status, running_task=None, now=None):
             group['synced'] = _to_datetime(sync.get('time'))
             # Both dorm tabs are fleets of this group
             tabs = [synced_fleets.get(str(number), {}).get('tab') for number in group['numbers']]
+            # Not shown if any task switches fleet roles, by auto swap or rotating mob fleet
+            switching = any(row['auto_swap'] or row['rotate'] for row in group['tasks'])
             group['reversed'] = (group['synced'] is not None and sync.get('reversed') is True
-                                 and 'training' in tabs and 'rest' in tabs and group['dorm'] != 3)
+                                 and 'training' in tabs and 'rest' in tabs and not switching)
     return groups
 
 
