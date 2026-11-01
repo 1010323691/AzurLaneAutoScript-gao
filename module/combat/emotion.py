@@ -306,6 +306,7 @@ class Emotion:
             # emotion may recover during mob battles, and non-auto-search maps wait emotion before boss battle.
             swapped = FLEET_ORDER_SWAP[method]
             recovered = None
+            capped = None
             for order, relax in [(method, False), (swapped, False), (method, True), (swapped, True)]:
                 recover_time = self.get_recovered(order, battle, relax_boss=relax)
                 if recover_time <= datetime.now():
@@ -313,7 +314,13 @@ class Emotion:
                         logger.info(f'Emotion of mob fleet is not enough, swap fleet order: {method} -> {order}')
                         self.config.override(Fleet_FleetOrder=order)
                     return
+                # Emotion is capped, the fleet order would never be enough at recover_time
+                if not self.is_reachable(order, battle):
+                    capped = recover_time if capped is None else min(capped, recover_time)
+                    continue
                 recovered = recover_time if recovered is None else min(recovered, recover_time)
+            if recovered is None:
+                recovered = capped
             if not delay:
                 logger.info(f'Emotion of both fleet orders is not enough, keep fleet order: {method}')
                 return

@@ -215,7 +215,7 @@ class TestClearAllEmotion(unittest.TestCase):
         self.assertEqual(c.delays, [])
 
     def test_never_enough_waits_in_map(self):
-        # 2x book, 16 battles = 64 emotion, can't keep happy bonus (120) under max 119 of docks
+        # 2x book, 21 battles = 80 emotion for mob fleet, control limit 40 + 80 is above max 119 of docks
         c = FakeCampaignConfig(119, 119, control='prevent_green_face')
         c.Campaign_Use2xBook = True
         campaign = FakeClearAllCampaign(c)
@@ -224,6 +224,20 @@ class TestClearAllEmotion(unittest.TestCase):
         self.assertEqual(campaign.clear_all(), 'enter')
         self.assertFalse(campaign.cancelled)
         self.assertEqual(c.delays, [])
+
+    def test_delay_ignores_capped_order(self):
+        # Fleet 1 in docks (max 119) can never have 40 + 80, fleet 2 in dormitory (max 150) can.
+        # Delay until fleet 2 recovers, not the earlier time calculated for the capped fleet 1
+        c = FakeCampaignConfig(110, 60)
+        c.Emotion_Fleet2Recover = 'dormitory_floor_2'
+        c.Campaign_Use2xBook = True
+        campaign = FakeClearAllCampaign(c)
+        campaign.MAP = type('MAP', (), {'_spawn_data': [{'battle': i, 'enemy': 5} for i in range(4)]})
+        self.assertEqual(campaign.clear_all(), 'delay')
+        self.assertEqual(c.Fleet_FleetOrder, 'fleet1_mob_fleet2_boss')
+        # Fleet 2 needs 40 + 80 - 60 = 60, 5 per 6 min in floor 2: 12 * 6 min
+        recovered = c.delays[0]['target']
+        self.assertTrue(datetime.now() + timedelta(minutes=71) <= recovered <= datetime.now() + timedelta(minutes=78))
 
     def test_not_calculate(self):
         c = FakeCampaignConfig(44, 50, mode='ignore')
