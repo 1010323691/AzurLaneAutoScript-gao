@@ -73,6 +73,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 低心情弹窗：撤退后 `check_reduce` 若已轮换到另一支够心情的道中队，弹窗那队不再出击，`handle_low_emotion_withdraw` 改为 `task_delay(minute=0)` 立即重新出击，不按弹窗那队的恢复时间推迟。
      - 面板：标题加「道中轮换」，三队各一行（运行中按状态文件的 `mob` 字段标出这次出击的道中队，另一队标「轮休」）；轮换任务和共用其 1、2 队的任务合成一组、每队只显示一次；每组底部显示寮舍摆放提醒（两队：Boss 1 层、道中 2 层；三队：第 3 队 1 层、第 1 队 2 层），即 `build_groups` 的 `dorm`。
      - 第 3 队的阵型、自律模式、步数沿用第 1 队的设置（`Fleet1Formation / Mode / Step` 按槽位生效）。还没在真机上跑过。
+  16. **配置方案（一键切换）**：总览页「出击状态」面板顶部，以及主线图、活动图设置页顶部，都有「配置方案」栏：把当前设置「保存当前为」一个命名方案，或从下拉框选一个方案「切换」/「删除」。
+     - 方案内容（`module/campaign/fleet_preset.py` 的 `preset_keys`）：`Fleet` 整组、`Submarine` 整组、`Emotion.Mode` 和各队 `Control / Recover / Oath`。不含心情值和记录时间（运行时状态，按游戏舰队共用）。
+     - 切换同时写 `Main` 和 `Event`（`PRESET_TASKS`），其他任务不动；只写有变化的键，跳过本版本没有的键和不在 `option` 里的值。面板显示「当前方案」：主线图（设置页上为该页任务）的设置与哪个方案完全一致。
+     - 存储：`config/preset/<config_name>.json`（已加入 `.gitignore`）。不放进 `alas.json`：`ConfigUpdater` 会丢掉模板里没有的键。该模块会被 GUI 进程导入，只依赖标准库和 `module.logger`。
+     - 切换直接改 `alas.json`；正在运行的任务按旧设置跑完，下一个任务读到新设置。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -114,7 +119,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）

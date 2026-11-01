@@ -42,6 +42,8 @@ from pywebio.pin import pin, pin_on_change
 from pywebio.session import download, go_app, info, local, register_thread, run_js, set_env
 
 import module.webui.lang as lang
+from module.campaign.fleet_preset import (PRESET_TASKS, preset_capture, preset_current, preset_modified, preset_read,
+                                          preset_write)
 from module.campaign.sortie_status import build_groups, format_time, status_file, status_read
 from module.config.config import AzurLaneConfig, Function
 from module.config.deep import deep_get, deep_iter, deep_set
@@ -308,11 +310,125 @@ class AlasGUI(Frame):
                 content=[put_text(task_help).style("font-size: 1rem")],
             )
 
+        if task in PRESET_TASKS:
+            put_scope(
+                "group_fleet_preset",
+                scope="groups",
+                content=[
+                    put_text(t("Gui.Preset.Title")),
+                    put_text(t("Gui.Preset.Help")),
+                    put_html('<hr class="hr-group">'),
+                    put_scope("fleet_preset"),
+                ],
+            )
+            self.put_fleet_preset(task)
+
         config = self.alas_config.read_file(self.alas_name)
         for group, arg_dict in deep_iter(self.ALAS_ARGS[task], depth=1):
             if self.set_group(group, arg_dict, config, task):
                 self.set_navigator(group)
         self.set_fleet3_active(task)
+
+    def put_fleet_preset(self, task=None):
+        """
+        Fleet presets of Main and Event, save current settings and switch to a saved one.
+
+        Args:
+            task (str): Task of the settings page, None on overview.
+        """
+        presets = preset_read(self.alas_name)
+        config = self.alas_config.read_file(self.alas_name)
+        source = task or PRESET_TASKS[0]
+        current = preset_current(config, presets, task=source)
+        names = list(presets)
+
+        clear("fleet_preset")
+        with use_scope("fleet_preset"):
+            if names:
+                if current is None:
+                    put_text(t("Gui.Preset.NoMatch")).style("--arg-help--")
+                else:
+                    put_text(t("Gui.Preset.Current", name=current)).style("--arg-help--")
+                put_row(
+                    [
+                        put_select(
+                            "_fleet_preset_select",
+                            options=[{"label": name, "value": name} for name in names],
+                            value=current if current is not None else names[0],
+                        ),
+                        put_buttons(
+                            [
+                                {"label": t("Gui.Preset.Apply"), "value": "apply", "color": "on"},
+                                {"label": t("Gui.Preset.Delete"), "value": "delete", "color": "off"},
+                            ],
+                            onclick=[
+                                lambda: self.fleet_preset_apply(task),
+                                lambda: self.fleet_preset_delete(task),
+                            ],
+                        ),
+                    ],
+                    size="1fr auto",
+                )
+            else:
+                put_text(t("Gui.Preset.Empty")).style("--arg-help--")
+            put_row(
+                [
+                    put_input("_fleet_preset_name", placeholder=t("Gui.Preset.NamePlaceholder")),
+                    put_button(
+                        label=t("Gui.Preset.SaveAs"),
+                        onclick=lambda: self.fleet_preset_save(task),
+                        color="off",
+                    ),
+                ],
+                size="1fr auto",
+            )
+
+    def fleet_preset_refresh(self, task):
+        if task is None:
+            self.alas_config.load()
+            self.put_fleet_preset()
+            self.alas_update_sortie_status()
+        else:
+            # Settings shown on page are changed
+            self.alas_set_group(task)
+
+    def fleet_preset_save(self, task):
+        name = str(pin["_fleet_preset_name"] or "").strip()
+        if not name:
+            toast(t("Gui.Preset.NameEmpty"), duration=2, position="right", color="error")
+            return
+        config = self.alas_config.read_file(self.alas_name)
+        presets = preset_read(self.alas_name)
+        presets[name] = preset_capture(config, self.ALAS_ARGS, task=task or PRESET_TASKS[0])
+        preset_write(self.alas_name, presets)
+        logger.info(f"Save fleet preset {name}: {dict_to_kv(presets[name])}")
+        toast(t("Gui.Preset.Saved", name=name), duration=1, position="right", color="success")
+        self.fleet_preset_refresh(task)
+
+    def fleet_preset_apply(self, task):
+        name = pin["_fleet_preset_select"]
+        presets = preset_read(self.alas_name)
+        if name not in presets:
+            return
+        config = self.alas_config.read_file(self.alas_name)
+        modified = preset_modified(config, self.ALAS_ARGS, presets[name])
+        if modified:
+            for key, value in modified.items():
+                deep_set(config, key, value)
+            logger.info(f"Apply fleet preset {name}, {dict_to_kv(modified)}")
+            self.alas_config.write_file(self.alas_name, config)
+        toast(t("Gui.Preset.Applied", name=name), duration=1, position="right", color="success")
+        self.fleet_preset_refresh(task)
+
+    def fleet_preset_delete(self, task):
+        name = pin["_fleet_preset_select"]
+        presets = preset_read(self.alas_name)
+        if presets.pop(name, None) is None:
+            return
+        preset_write(self.alas_name, presets)
+        logger.info(f"Delete fleet preset {name}")
+        toast(t("Gui.Preset.Deleted", name=name), duration=1, position="right", color="success")
+        self.fleet_preset_refresh(task)
 
     def set_fleet3_active(self, task):
         """
@@ -505,6 +621,7 @@ class AlasGUI(Frame):
                 [
                     put_text(t("Gui.Overview.CampaignStatus")),
                     put_html('<hr class="hr-group">'),
+                    put_scope("fleet_preset"),
                     put_scope("sortie_status"),
                 ],
             )
@@ -525,6 +642,7 @@ class AlasGUI(Frame):
             put_scope("log", [put_html("")])
 
         log.console.width = log.get_width()
+        self.put_fleet_preset()
 
         switch_log_scroll = BinarySwitchButton(
             label_on=t("Gui.Button.ScrollON"),

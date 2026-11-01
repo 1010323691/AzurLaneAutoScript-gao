@@ -77,6 +77,21 @@ Overview:
   DormHint3:
   NoEmotion:
 
+Preset:
+  Title:
+  Help:
+  Current:
+  NoMatch:
+  Empty:
+  Apply:
+  Delete:
+  SaveAs:
+  NamePlaceholder:
+  NameEmpty:
+  Saved:
+  Applied:
+  Deleted:
+
 AddAlas:
   PopupTitle:
   NewName:
