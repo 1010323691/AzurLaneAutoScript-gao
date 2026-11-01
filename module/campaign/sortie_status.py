@@ -212,6 +212,23 @@ def dorm_mismatch(data):
     return out
 
 
+def dorm_expected(data):
+    """
+    Args:
+        data (dict): Config of a task, with Fleet and Emotion groups
+
+    Returns:
+        dict: Key: game fleet number, value: expected Emotion.Fleet*Recover by the dorm layout.
+            Empty if dorm is not used at all, same as dorm_mismatch().
+    """
+    fleet = data.get('Fleet', {})
+    emotion = data.get('Emotion', {})
+    _, expected = dorm_layout(fleet)
+    if all(emotion.get(f'Fleet{key}Recover') == 'not_in_dormitory' for key in expected):
+        return {}
+    return {fleet.get(f'Fleet{key}'): recover for key, recover in expected.items() if fleet.get(f'Fleet{key}')}
+
+
 def fleet_keys(fleet):
     """
     Args:
@@ -660,10 +677,7 @@ def build_rows(config_data, status, running_task=None, now=None):
             # Rotation selected but disabled by invalid fleets
             'rotate_invalid': data['Fleet'].get('FleetOrder') == FLEET_ORDER_ROTATE and not is_rotate(data['Fleet']),
             'dorm': dorm_layout(data['Fleet'])[0],
-            # Expected Emotion.Fleet*Recover of each game fleet
-            'dorm_expected': {data['Fleet'].get(f'Fleet{key}'): recover
-                              for key, recover in dorm_layout(data['Fleet'])[1].items()
-                              if data['Fleet'].get(f'Fleet{key}')},
+            'dorm_expected': dorm_expected(data),
             'dorm_mismatch': dorm_mismatch(data),
             'calculate': 'calculate' in str(data['Emotion'].get('Mode', '')),
             'fleets': fleets,

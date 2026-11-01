@@ -269,7 +269,12 @@ class TestBuildRows(unittest.TestCase):
                                              {'number': 2, 'tasks': ['Main', 'Event']}])
         # Settings can't match both tasks, not shown as dorm mismatch
         self.assertEqual(group['dorm_mismatch'], [])
+        # Dorm not used by either task
+        for task in ['Main', 'Event']:
+            data[task]['Emotion'].update(Fleet1Recover='not_in_dormitory', Fleet2Recover='not_in_dormitory')
+        self.assertEqual(build_groups(data, {}, now=NOW)[0]['conflict'], [])
         # Same roles, no conflict
+        data['Main']['Emotion'].update(Fleet1Recover='dormitory_floor_2', Fleet2Recover='dormitory_floor_1')
         data['Event']['Fleet']['FleetOrder'] = 'fleet1_mob_fleet2_boss'
         self.assertEqual(build_groups(data, {}, now=NOW)[0]['conflict'], [])
 
