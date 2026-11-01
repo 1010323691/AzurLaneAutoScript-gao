@@ -172,12 +172,13 @@ for _name in ['handle_story_skip', 'handle_get_ship', 'handle_get_items', 'handl
 
 class FakeCombatStatusBattle(FakeCombatStatus):
     """Combat status with battle status clicked."""
-    IN_STAGE_MISSING_SECOND = 0
+    IN_STAGE_MISSING_SECOND = 0.02
 
     def loop(self, skip_first=True, timeout=None):
         for _ in super().loop(skip_first=skip_first, timeout=timeout):
-            # Timer needs time passed, time() resolution is about 16ms on Windows
-            time.sleep(0.02)
+            # Timer reaches on the second frame in map, never on the first one.
+            # Limit is above time() resolution (about 16ms on Windows), and sleep is above the limit
+            time.sleep(0.03)
             yield None
 
     def handle_battle_status(self, drop=None):

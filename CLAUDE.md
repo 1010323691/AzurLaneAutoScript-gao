@@ -13,7 +13,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **git remote**：`origin` 指向 fork，`upstream` 指向上游。同步上游的做法：`git pull upstream master`，解决冲突，再 `git push origin master`。
 - **自动更新已关闭**：`config/deploy.yaml` 里 `AutoUpdate: false`、`CheckUpdateInterval: 0`、`AutoRestartTime: null`，`Repository` 指向 fork。这个文件被 `.gitignore` 忽略，不会进提交。
-  - 原因：更新流程会执行 `git reset --hard origin/<branch>`（`deploy/git.py` 的 `git_repository_init`，由 `git_install` 调用）。只要打开 `Alas.exe` 或触发 GUI 更新，未提交的本地改动就会被**直接抹掉**，本仓库已经因此丢过一次改动。
+  - 原因：启动时的部署流程会执行 `git reset --hard origin/<branch>`（`deploy/git.py` 的 `git_repository_init`，由 `git_install` 调用）。只要 `AutoUpdate` 打开，打开 `Alas.exe` 时未提交的本地改动就会被**直接抹掉**，本仓库已经因此丢过一次改动。
+  - **GUI 更新**（`Updater.git_install()`，`module/webui/updater.py`）：`AutoUpdate` 打开时和启动部署相同，会 `reset --hard`。`AutoUpdate` 关闭时点「更新」只做 `git fetch` 和 `git merge --ff-only`，不改 git 配置（`GitProxy`、`SSLVerify` 用 `git -c` 传给单条命令），不动锁文件，有本地提交或本地改动和更新冲突时更新失败、本地不动，也不重试。不在 `Branch` 分支上时不提示有更新。`AutoUpdate` 关闭时定时重启不更新也不重启。`Updater.run_command()` 把命令输出写进 GUI 日志（Electron 下 stdout 不进日志文件）。macOS 的 `Alas.command` 不跑 `deploy`，所以 Mac 上只有这一条更新路径；上游更新了 `webapp/` 时还要手动重新构建桌面壳。
   - **规则**：改动要尽快提交；在提交前不要让用户重启 `Alas.exe`。
 - **fork 新增功能**（上游没有；同步上游时要注意冲突）：
   1. **卡死处理** `Restart.StuckHandle`（重启设置页）。`Mode: restart | skip_task`，`SkipDelay: 1h | 3h | 6h | server_update`。
@@ -127,7 +128,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -409,6 +410,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | 某个服务器识别失败，其他服务器正常 | 缺少该服务器的素材，或 `@Config.when(SERVER=...)` 分支缺失 | `assets/<server>/<module>/`，对应模块的 `assets.py` |
 | 改了配置但不生效 | 没跑 `config_updater`；值不在 `option` 里，被重置为默认值；运行中的进程仍是旧代码 | `module/config/argument/*.yaml`；重启实例或 GUI |
 | 改动消失了 | 自动更新执行了 `git reset --hard` | 第 0 节；`git reflog` 可以看到 `reset: moving to origin/master` |
+| GUI 点更新后重启了，但版本没变，仍提示有更新 | 上游的 `git_install` 被 `AutoUpdate: false` 跳过（已修复）；现在更新失败时状态会显示失败 | GUI 日志 `Update Alas` 段落里 `git merge --ff-only` 的输出 |
 
 ### 7.3 排查思路
 
@@ -450,7 +452,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 ## 10. 易踩的坑（汇总）
 
 - 系统 Python 跑不了本项目，只能用 `toolkit/python.exe`。toolkit 里没有 pytest。
-- 自动更新会 `git reset --hard`：本 fork 已关闭，但重新安装或替换 `config/deploy.yaml` 后会恢复默认的 `AutoUpdate: true`。
+- 启动时的自动更新会 `git reset --hard`：本 fork 已关闭，但重新安装或替换 `config/deploy.yaml` 后会恢复默认的 `AutoUpdate: true`。`AutoUpdate` 关闭时 GUI 更新只做快进，不会抹掉改动。
 - `from module.config.server import server` 拿到的是旧值。模块顶层的服务器判断在 import 时就已求值。
 - 给已绑定的 config 属性赋值会直接写进用户配置文件；临时值用 `override`。
 - `override` 和 `FLEET_BOSS` 等派生属性只在当前任务内有效，任务结束后 config 会重新加载。

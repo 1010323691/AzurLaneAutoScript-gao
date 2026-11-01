@@ -165,6 +165,16 @@ class DeployConfig(ConfigModel):
             .replace('"', '"')
         )
 
+    def run_command(self, command):
+        """
+        Args:
+            command (str):
+
+        Returns:
+            int: Error code.
+        """
+        return os.system(command)
+
     def execute(self, command, allow_failure=False, output=True):
         """
         Args:
@@ -180,7 +190,7 @@ class DeployConfig(ConfigModel):
         if not output:
             command = command + ' >nul 2>nul'
         logger.info(command)
-        error_code = os.system(command)
+        error_code = self.run_command(command)
         if error_code:
             if allow_failure:
                 logger.info(f"[ allowed failure ], error_code: {error_code}")
