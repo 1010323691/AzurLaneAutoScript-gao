@@ -112,16 +112,21 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         logger.hr(f'{self.FUNCTION_NAME_BASE}{self.battle_count}', level=2)
         prev = self.battle_count
         result = False
-        for _ in range(10):
-            try:
-                result = self.battle_function()
-                break
-            except MapEnemyMoved:
-                if self.battle_count > prev:
-                    result = True
+        # Allow _goto() to give up unreachable destinations, MapEnemyMoved is caught here
+        self.walk_unreachable_enabled = True
+        try:
+            for _ in range(10):
+                try:
+                    result = self.battle_function()
                     break
-                else:
-                    continue
+                except MapEnemyMoved:
+                    if self.battle_count > prev:
+                        result = True
+                        break
+                    else:
+                        continue
+        finally:
+            self.walk_unreachable_enabled = False
 
         if not result:
             logger.warning('ScriptError, No combat executed.')

@@ -21,6 +21,12 @@ class Fleet(Camera, AmbushHandler):
     siren_count = 0
     fleet_ammo = 5
     ammo_count = 3
+    # Give up a destination after these walk timeouts in a row, see walk_unreachable_giveup()
+    WALK_UNREACHABLE_RETRY = 3
+    # Set to True by CampaignBase.execute_a_battle(), which catches MapEnemyMoved and chooses another target
+    walk_unreachable_enabled = False
+    # Key: (fleet_index, location). Destinations that the fleet failed to reach, cleared after any fleet moves
+    walk_unreachable = set()
 
     @property
     def fleet_1(self):
@@ -310,6 +316,7 @@ class Fleet(Camera, AmbushHandler):
         # The upper grid is submarine, may mess up predict_fleet()
         may_submarine_icon = self.map.grid_covered(self.map[location], location=[(0, -1)])
         may_submarine_icon = may_submarine_icon and self.fleet_submarine_location == may_submarine_icon[0].location
+        walk_timeout_count = 0
 
         while 1:
             self.fleet_ensure(self.fleet_current_index)
@@ -381,6 +388,7 @@ class Fleet(Camera, AmbushHandler):
                     arrive_timer = Timer(0.5 + extra, count=2)
                     arrive_unexpected_timer = Timer(1.5 + extra, count=6)
                     walk_timeout.reset()
+                    walk_timeout_count = 0
                     if not (grid.predict_fleet() and grid.predict_current_fleet()):
                         ambushed_retry.start()
 
@@ -389,6 +397,7 @@ class Fleet(Camera, AmbushHandler):
                     self.hp_get()
                     self.lv_get(after_battle=True)
                     walk_timeout.reset()
+                    walk_timeout_count = 0
                     self.view.update(image=self.device.image)
                     if not (grid.predict_fleet() and grid.predict_current_fleet()):
                         ambushed_retry.start()
@@ -471,10 +480,14 @@ class Fleet(Camera, AmbushHandler):
                     break
                 if walk_timeout.reached():
                     logger.warning('Walk timeout. Retrying.')
-                    if may_submarine_icon and self.fleet_focus_by_switch(location):
+                    walk_timeout_count += 1
+                    giveup = self.walk_unreachable_enabled and walk_timeout_count >= self.WALK_UNREACHABLE_RETRY
+                    if may_submarine_icon and not giveup and self.fleet_focus_by_switch(location):
                         break
                     self.predict()
                     self.ensure_edge_insight(skip_first_update=False)
+                    if giveup:
+                        self.walk_unreachable_giveup(location)
                     break
 
             # End
@@ -488,6 +501,8 @@ class Fleet(Camera, AmbushHandler):
         self.map[location].wipe_out()
         self.map[location].is_fleet = True
         self.__setattr__('fleet_%s_location' % self.fleet_current_index, location)
+        # Fleet moved, paths changed
+        self.walk_unreachable = set()
         if result_mystery == 'get_carrier':
             self.full_scan_carrier()
         if result == 'combat':
@@ -507,6 +522,29 @@ class Fleet(Camera, AmbushHandler):
         if self.config.MAP_HAS_DECOY_ENEMY:
             if result == 'nothing' and expected == 'combat':
                 raise MapEnemyMoved
+
+    def walk_unreachable_giveup(self, location):
+        """
+        Fleet doesn't move after clicking destination several times.
+        Game shows "destination unreachable" when the route is blocked by enemies that are failed to detect,
+        so clicking again never works.
+        Real case: 8-3, fleet at G5 boxed in by G4, H4, E6, but H4 was missed in full scan,
+        Alas kept clicking A3 until GameTooManyClickError.
+        Mark destination as unreachable for current fleet and let battle function choose another target.
+
+        Args:
+            location (tuple):
+
+        Raises:
+            MapEnemyMoved: Caught by CampaignBase.execute_a_battle()
+        """
+        location = location_ensure(location)
+        logger.warning(f'Fleet {self.fleet_current_index} can not reach {location2node(location)} '
+                       f'after {self.WALK_UNREACHABLE_RETRY} walk timeouts, choose another target')
+        self.walk_unreachable.add((self.fleet_current_index, location))
+        self.find_path_initial()
+        self.map.show_cost()
+        raise MapEnemyMoved
 
     def goto(self, location, expected='', step_optimize=None, turning_optimize=None):
         """
@@ -566,8 +604,11 @@ class Fleet(Camera, AmbushHandler):
         if self.config.MAP_HAS_FORTRESS:
             if not self.map.select(is_fortress=True):
                 self.map.select(is_mechanism_block=True).set(is_mechanism_block=False)
+        blocked = {}
+        for fleet, location in self.walk_unreachable:
+            blocked.setdefault(fleet, []).append(location)
         self.map.find_path_initial_multi_fleet(
-            location_dict, current=self.fleet_current, has_ambush=self.config.MAP_HAS_AMBUSH)
+            location_dict, current=self.fleet_current, has_ambush=self.config.MAP_HAS_AMBUSH, blocked=blocked)
 
     def show_fleet(self):
         fleets = []
@@ -901,6 +942,7 @@ class Fleet(Camera, AmbushHandler):
         self.fleet_2_location = ()
         self.fleet_submarine_location = ()
         self.fleet_current_index = 1
+        self.walk_unreachable = set()
         self.battle_count = 0
         self.mystery_count = 0
         self.carrier_count = 0

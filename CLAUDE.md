@@ -82,6 +82,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 删除前弹窗确认。总览页的「当前方案」要求主线图和活动图都与方案一致；设置页只看本页任务。
      - 存储：`config/preset/<config_name>.json`（已加入 `.gitignore`）。不放进 `alas.json`：`ConfigUpdater` 会丢掉模板里没有的键。该模块会被 GUI 进程导入，只依赖标准库和 `module.logger`。
      - 切换直接改 `alas.json`；正在运行的任务按旧设置跑完，下一个任务读到新设置。
+  17. **点了目标却走不过去时换目标**：舰队去某格的路被没识别出的敌人挡住时，游戏提示「目标海域无法抵达」，舰队不动；上游每 20 秒 `Walk timeout` 重点一次，直到 `GameTooManyClickError`。2026-11-01 日服 8-3：第 2 战后舰队 1 在 G5，被 G4、H4、E6 的敌人围住，H4 刚刷出时没认出来（打完那一刻 G4、H4 都没认出，事后离线识别同一画面能认出，属于瞬时漏认），Alas 算出一条经过 H4 的路，一直点 A3，约 4 分钟后才报错。
+     - 现在 `Fleet._goto()` 同一目标连续 `WALK_UNREACHABLE_RETRY`（3）次走路超时（约 60 秒，中途有战斗或伏击就重新计数），调 `walk_unreachable_giveup()`：把 `(当前舰队, 目标格)` 记进 `walk_unreachable`，`find_path_initial()` 对该舰队把这些格当陆地（`CampaignMap.find_path_initial(blocked=)`），目标变成不可达，再抛 `MapEnemyMoved`，由 `execute_a_battle` 重跑战斗函数改选别的目标。任一舰队走到新格子就清空，进图时也清空。
+     - 只在 `CampaignBase.execute_a_battle` 里生效（`walk_unreachable_enabled`）：大世界的 `OSFleet._goto` 和 `map_init` 等战斗循环外的 `goto` 没人捕获 `MapEnemyMoved`，保持原来的无限重试。改选 10 次都没打成就按上游走「No combat executed」撤退。
+     - 目标格正上方是潜艇时（第 11 条），前两次超时仍先切换舰队对焦，第 3 次直接放弃。还没在真机上触发过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -123,7 +127,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -390,6 +394,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | 推图不推进 | `MapAchievement=non_stop`；或关卡素材、OCR 识别失败 | `module/handler/fast_forward.py` 的 `triggered_map_stop` / `handle_map_stop` |
 | 自律寻敌时卡在红色 DEFEAT 提示页，任务被推迟到次日 | 战败提示页没被识别（fork 第 7 条已处理） | 错误现场截图；日志的 `Combat defeated, DEFEAT_TIPS` |
 | 推图打完一章就停了，任务显示完成 | Boss 战战败（日志有 `Battle Status D`、`Combat defeated`），任务被延迟。只配一支舰队或职能不是道中/Boss 分工时，2~6 章由道中队带伤打 Boss | 错误现场截图；`campaign/campaign_main/campaign_N_1.py` 的 `Config`；fork 第 7、10 条 |
+| 日志反复 `Click @ XX` 和 `Walk timeout. Retrying.`，舰队不动，最后 `Too many click for a button: XX` | 去目标的路被没识别出的敌人挡住，游戏提示「目标海域无法抵达」（fork 第 17 条已处理） | 日志的 `can not reach XX after 3 walk timeouts` |
 | 舰队已经停在目标格，日志反复 `Arrive XX (may_submarine_icon, is_current_fleet)` 和 `Walk timeout. Retrying.` | 目标格上方是潜艇，当前舰队箭头被顶部界面挡住（fork 第 11 条已处理） | 日志的 `Current fleet arrow may be hidden, switch fleets` |
 | 打 Boss 前 `Move submarine to XX` 后反复 `Walk timeout. Retrying.`，`Too many click for a button: XX` | 潜艇移动点击无反应（fork 第 12 条已处理） | 日志的 `Submarine not moving to XX, give up` |
 | 主线 2~6 章打 Boss 时没换到 Boss 队 | 地图脚本写死 `FLEET_BOSS = 1`（fork 第 10 条已处理；仍不换时看 GUI 是否配了第 2 舰队、职能是否为分工） | 日志的 `Map file sets FLEET_BOSS = 1, follow Fleet.FleetOrder` |
