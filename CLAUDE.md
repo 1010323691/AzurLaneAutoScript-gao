@@ -61,7 +61,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 对应：按用户配置里的基础职能（`cross_get` 读原始 `Fleet.FleetOrder`，去掉 `_auto_swap`，不受本次互换影响），「訓練」页 = Boss 队，「休憩」页 = 道中队。「全部 / 待机」职能不同步。
      - 写入：`Value` = 最低心情，`Record` = 现在。恢复速度换算成 `Recover / Oath`（20 不在寮舍、30 不在寮舍 + 誓约、40 一层、50 二层、60 二层 + 誓约），不在表里的速度保留原设置。写到所有共用该游戏舰队的任务（`emotion_apply`），结果写进状态文件的 `_EmotionSync` 键，面板显示同步时间。写入用 `emotion.config`：`CampaignRun.campaign.config` 是深拷贝，`Emotion` 读的是它。
      - 放反提示：道中队消耗快，「訓練」页（1 层，Boss 队）最低心情应高于「休憩」页（2 层，道中队）。同步后如果訓練页更低（`dorm_floor_reversed`），按用户的判断就是寮舍两层放反了：日志 warning，`_EmotionSync` 记 `reversed`，面板用红字提示「Boss 队放 1 层，道中队放 2 层」。读数仍按页面写入，不自动对调。
-     - 坑：`Ocr` 在构造时按当时的服务器选模型。国服模型会把 `40/h` 读成 `4/`，所以 OCR 对象在 `ocr_ships()` 里现建，不放在模块级（真机读错 `4/` 就是这个原因，不是动画）。`h` 不在日服模型字符表里，读 `0123456789/`，取 `/` 前面的数字。切页后等 1 秒、要求连续两次结果一致，只是防卡片入场动画的保险。点标签有 2 秒间隔，标签一直认不出时会超时退回推算值，不会点到 `GameTooManyClickError`。
+     - 坑：`Ocr` 在构造时按当时的服务器选模型。国服模型会把 `40/h` 读成 `4/`，所以 OCR 对象在 `ocr_ships()` 里现建，不放在模块级（真机读错 `4/` 就是这个原因，不是动画）。`h` 不在日服模型字符表里，读 `0123456789/`，取 `/` 前面的数字。切页后等 1 秒、要求连续两次结果一致，只是防卡片入场动画的保险。点标签有 2 秒间隔，标签一直认不出时会超时退回推算值，不会点到 `GameTooManyClickError`。关弹窗：`DORM_TRAINING_ENTER` 在弹窗下面也能看到，点 × 之后 × 可能有一帧认不出，而点击其实没生效（2026-11-01 日服：弹窗没关就回去推图，认不出页面报 `GamePageUnknownError`）。所以 `_training_close` 要连续约 1 秒都看不到 ×、训练和休憩标签，才算关闭；× 还在就每 2 秒重点一次。
      - 只统计寮舍里的船；舰队里不在寮舍的船看不到。素材只有日服截图（cn 目录放的也是日服图）。2026-10-31 在真机上跑通过读取流程（读数和画面一致）；「心情不够 → 同步 → 出击 / 推迟」的完整流程还没在真机上自然触发过。
      - `sortie_status.py` 会被 GUI 进程导入（假 PIL），只能依赖标准库和 `module.logger`。不要和已有的 `module/campaign/campaign_status.py`（OCR 读石油、物资）混淆。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。

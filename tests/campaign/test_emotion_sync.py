@@ -3,6 +3,7 @@ import json
 import os
 import shutil
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta
 from unittest.mock import patch
@@ -282,6 +283,55 @@ class TestEmotionSyncRetry(unittest.TestCase):
             self.assertFalse(self.run_of('EventA').emotion_sync_start())
             self.assertTrue(self.run_of('Event').emotion_sync_available())
             sync.assert_not_called()
+
+
+class FakeClickDevice:
+    def __init__(self):
+        self.clicked = []
+
+    def click(self, button):
+        self.clicked.append(button.name)
+
+
+class FakeTrainingClose(EmotionSync):
+    """_training_close() with screenshots replaced by a list of appearing buttons."""
+
+    def __init__(self, frames):
+        self.device = FakeClickDevice()
+        self.frames = frames
+        self.appearing = set()
+        self.frame_count = 0
+
+    def loop(self, skip_first=True, timeout=None):
+        for frame in self.frames:
+            self.appearing = frame
+            self.frame_count += 1
+            yield None
+            time.sleep(0.4)
+        raise AssertionError('Dorm training popup close not ended')
+
+    def appear(self, button, offset=0, interval=0, similarity=0.85, threshold=10):
+        return button.name in self.appearing
+
+
+POPUP = {'DORM_TRAINING_CLOSE', 'DORM_TAB_REST', 'DORM_TRAINING_ENTER'}
+GONE = {'DORM_TRAINING_ENTER'}
+
+
+class TestTrainingClose(unittest.TestCase):
+    def test_close_missing_after_click(self):
+        # Real case: JP, DORM_TRAINING_CLOSE didn't match right after clicked, but the click didn't close popup
+        clicked = {'DORM_TAB_REST', 'DORM_TRAINING_ENTER'}
+        sync = FakeTrainingClose([POPUP, clicked, POPUP, GONE, GONE, GONE, GONE, GONE])
+        sync._training_close(skip_first_screenshot=False)
+        self.assertEqual(sync.device.clicked, ['DORM_TRAINING_CLOSE', 'DORM_TRAINING_CLOSE'])
+        # Ended after popup gone for a while, not on the frame missing DORM_TRAINING_CLOSE
+        self.assertGreaterEqual(sync.frame_count, 6)
+
+    def test_closed(self):
+        sync = FakeTrainingClose([POPUP, GONE, GONE, GONE, GONE, GONE, GONE])
+        sync._training_close(skip_first_screenshot=False)
+        self.assertEqual(sync.device.clicked, ['DORM_TRAINING_CLOSE'])
 
 
 if __name__ == '__main__':
