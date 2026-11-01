@@ -5,6 +5,7 @@ import os
 import queue
 import threading
 import time
+from copy import deepcopy
 from datetime import datetime
 from functools import partial
 from typing import Dict, List, Optional
@@ -44,7 +45,7 @@ from pywebio.session import download, go_app, info, local, register_thread, run_
 import module.webui.lang as lang
 from module.campaign.fleet_preset import (PRESET_TASKS, preset_capture, preset_current, preset_modified, preset_read,
                                           preset_write)
-from module.campaign.sortie_status import build_groups, format_time, status_file, status_read
+from module.campaign.sortie_status import build_groups, emotion_follow_fleet, format_time, status_file, status_read
 from module.config.config import AzurLaneConfig, Function
 from module.config.deep import deep_get, deep_iter, deep_set
 from module.config.env import IS_ON_PHONE_CLOUD
@@ -439,6 +440,8 @@ class AlasGUI(Frame):
             return
         config = self.alas_config.read_file(self.alas_name)
         modified = preset_modified(config, self.ALAS_ARGS, presets[name])
+        # Emotion follows game fleets when fleet numbers change
+        modified.update(emotion_follow_fleet(config, modified))
         if modified:
             for key, value in modified.items():
                 deep_set(config, key, value)
@@ -749,6 +752,8 @@ class AlasGUI(Frame):
             valid = []
             invalid = []
             config = config_updater.read_file(config_name)
+            # Game fleets before modification, emotion follows them
+            fleets = {k: deep_get(config, k) for k in modified if k.split(".")[1:2] == ["Fleet"]}
             n = datetime.now()
             for p, v in deep_iter(config, depth=3):
                 if p[-1].endswith('un') and not isinstance(v, bool):
@@ -780,6 +785,14 @@ class AlasGUI(Frame):
                     logger.warning(f"Invalid value {v} for key {k}, skip saving.")
             self.pin_remove_invalid_mark(valid)
             self.pin_set_invalid_mark(invalid)
+            # Emotion follows game fleets when fleet numbers change
+            before = deepcopy(config)
+            for k, v in fleets.items():
+                deep_set(before, k, v)
+            for k, v in emotion_follow_fleet(before, modified).items():
+                modified[k] = v
+                deep_set(config, k, v)
+                pin["_".join(k.split("."))] = to_pin_value(v)
             if modified:
                 toast(
                     t("Gui.Toast.ConfigSaved"),
@@ -992,6 +1005,9 @@ class AlasGUI(Frame):
         warns = []
         if group.get("rotate_invalid"):
             warns.append(t("Gui.Overview.RotateInvalid"))
+        for item in group.get("conflict", []):
+            tasks = " / ".join(t(f"Task.{task}.name") for task in item["tasks"])
+            warns.append(t("Gui.Overview.RoleConflict", number=item["number"], tasks=tasks))
         if group["reversed"]:
             warns.append(t("Gui.Overview.DormReversed"))
         for item in group.get("dorm_mismatch", []):

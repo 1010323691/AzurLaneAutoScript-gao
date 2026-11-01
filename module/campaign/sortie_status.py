@@ -42,6 +42,11 @@ FLEET_ORDER_ROLE = {
     'fleet1_standby_fleet2_all': ('standby', 'all'),
 }
 AUTO_SWAP_SUFFIX = '_auto_swap'
+# Swap mob fleet and boss fleet, used when Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap
+FLEET_ORDER_SWAP = {
+    'fleet1_mob_fleet2_boss': 'fleet1_boss_fleet2_mob',
+    'fleet1_boss_fleet2_mob': 'fleet1_mob_fleet2_boss',
+}
 # Fleet 1 and fleet 3 take turns as mob fleet, fleet 2 is boss fleet
 FLEET_ORDER_ROTATE = 'fleet1_mob_fleet2_boss_fleet3_rotate'
 # Expected Emotion.Fleet*Recover of each fleet role, boss fleet on floor 1 (training), mob fleet on floor 2 (rest)
@@ -58,6 +63,8 @@ ROTATE_KEY_TO_RECOVER = {
 STATUS_FOLDER = './log/status'
 # Tasks that don't share emotion with other tasks using the same game fleet
 EMOTION_NOT_SHARED = ['GemsFarming']
+# Emotion record of a fleet not recorded by any task, same as the default in argument.yaml
+EMOTION_RECORD_UNKNOWN = datetime(2020, 1, 1, 0, 0, 0)
 # Status key of the last dorm emotion sync
 EMOTION_SYNC_KEY = '_EmotionSync'
 
@@ -205,6 +212,23 @@ def dorm_mismatch(data):
     return out
 
 
+def dorm_expected(data):
+    """
+    Args:
+        data (dict): Config of a task, with Fleet and Emotion groups
+
+    Returns:
+        dict: Key: game fleet number, value: expected Emotion.Fleet*Recover by the dorm layout.
+            Empty if dorm is not used at all, same as dorm_mismatch().
+    """
+    fleet = data.get('Fleet', {})
+    emotion = data.get('Emotion', {})
+    _, expected = dorm_layout(fleet)
+    if all(emotion.get(f'Fleet{key}Recover') == 'not_in_dormitory' for key in expected):
+        return {}
+    return {fleet.get(f'Fleet{key}'): recover for key, recover in expected.items() if fleet.get(f'Fleet{key}')}
+
+
 def fleet_keys(fleet):
     """
     Args:
@@ -277,6 +301,7 @@ def latest_emotion(config_data, number, exclude_task=None):
             among tasks using it. None if no task records it.
     """
     latest = None
+    votes = {}
     for task, slot in emotion_slots(config_data, number, exclude_task=exclude_task):
         emotion = config_data[task]['Emotion']
         record = _to_datetime(emotion.get(f'Fleet{slot}Record'))
@@ -285,7 +310,62 @@ def latest_emotion(config_data, number, exclude_task=None):
             continue
         if latest is None or record > latest[1]:
             latest = (value, record)
+            votes = {}
+        if record == latest[1]:
+            votes[value] = votes.get(value, 0) + 1
+    # Emotion is written into all slots of a game fleet at once, slots with the same record time
+    # but different values come from changing game fleets of slots, see emotion_follow_fleet().
+    # Take the value most slots have, the changed slots are the few.
+    if latest is not None and len(votes) > 1:
+        latest = (max(votes, key=lambda value: votes[value]), latest[1])
     return latest
+
+
+def emotion_follow_fleet(config_data, modified):
+    """
+    Emotion is saved in fleet slots (Emotion.Fleet{key}Value / Record) but belongs to the game fleet.
+    When the game fleet of a slot changes, such as swapping Fleet.Fleet1 and Fleet.Fleet2,
+    emotion of the new game fleet is copied into the slot. Otherwise the slot keeps the emotion of the
+    previous game fleet with the same record time as the real one, and may be taken as the latest.
+
+    Args:
+        config_data (dict): User config before modification
+        modified (dict): Key: path such as "Main.Fleet.Fleet1", value: value to set
+
+    Returns:
+        dict: Emotion values and records to set, same format as `modified`.
+            Record is reset to EMOTION_RECORD_UNKNOWN if no task records the new game fleet,
+            so it recovers to max as a new fleet does.
+    """
+    out = {}
+    snapshot = {}
+    for path, number in modified.items():
+        parts = path.split('.')
+        if len(parts) != 3 or parts[1] != 'Fleet':
+            continue
+        res = re.fullmatch(r'Fleet([123])', parts[2])
+        if not res:
+            continue
+        task, key = parts[0], int(res.group(1))
+        data = config_data.get(task)
+        if task in EMOTION_NOT_SHARED or not isinstance(data, dict):
+            continue
+        if not isinstance(data.get('Emotion'), dict) or not isinstance(data.get('Fleet'), dict):
+            continue
+        if not number or number == data['Fleet'].get(f'Fleet{key}'):
+            continue
+        # Emotion set together by user
+        if f'{task}.Emotion.Fleet{key}Value' in modified:
+            continue
+        if number not in snapshot:
+            snapshot[number] = latest_emotion(config_data, number)
+        latest = snapshot[number]
+        if latest is None:
+            out[f'{task}.Emotion.Fleet{key}Record'] = _to_str(EMOTION_RECORD_UNKNOWN)
+        else:
+            out[f'{task}.Emotion.Fleet{key}Value'] = latest[0]
+            out[f'{task}.Emotion.Fleet{key}Record'] = _to_str(latest[1])
+    return out
 
 
 def status_read(config_name):
@@ -389,6 +469,9 @@ def _fleet_rows(config_data, data, order, now, mob=None):
     fleet = data.get('Fleet', {})
     emotion = data.get('Emotion', {})
     roles = FLEET_ORDER_ROLE[order]
+    # Without fleet 2, fleet 1 fights all battles, see AzurLaneConfig.FLEET_BOSS
+    if not fleet.get('Fleet2') and 'mob' in roles:
+        roles = ('all', 'standby')
     rotate = is_rotate(fleet)
     rows = []
     for index in fleet_keys(fleet):
@@ -442,6 +525,49 @@ def _fleet_rows(config_data, data, order, now, mob=None):
                 else:
                     row['role'] = 'rest'
     return rows
+
+
+def _predict_swap(fleets, order, battle, reduce, now, next_run=None):
+    """
+    Predict the fleet order of the next sortie when auto swapping, same as Emotion.check_reduce()
+
+    Args:
+        fleets (list[dict]): Rows of _fleet_rows(), slot 1 and 2
+        order (str): Fleet order in user config
+        battle (int): Battles in the stage
+        reduce (int): Emotion reduce per battle
+        now (datetime): Time when values of fleets are calculated
+        next_run (datetime): Time of the next sortie, emotion recovers until then
+
+    Returns:
+        str: Fleet order, None if unknown.
+    """
+    slots = {row['slot']: row for row in fleets}
+    if set(slots) != {1, 2} or any(row['value'] is None or row['limit'] is None for row in slots.values()):
+        return None
+    swapped = FLEET_ORDER_SWAP[order]
+    for relax in [False, True]:
+        for method in [order, swapped]:
+            enough = True
+            for slot, role in enumerate(FLEET_ORDER_ROLE[method], start=1):
+                row = slots[slot]
+                keep_bonus = row['limit'] == DIC_LIMIT['keep_exp_bonus']
+                if role == 'mob':
+                    count = battle - 1
+                else:
+                    count = 0 if relax and not keep_bonus else 1
+                expected = count * reduce
+                if keep_bonus:
+                    expected = min(expected, 29)
+                value = row['value']
+                if next_run is not None and next_run > now:
+                    value = emotion_current(value, now, row['speed'] // 10, row['max'], now=next_run)
+                if value < row['limit'] + expected:
+                    enough = False
+            if enough:
+                return method
+    # Neither is enough, task will be delayed with the fleet order in user config
+    return order
 
 
 def _task_state(status, is_running, next_run, now):
@@ -520,6 +646,22 @@ def build_rows(config_data, status, running_task=None, now=None):
         order, auto_swap = _fleet_order(data['Fleet'].get('FleetOrder'), task_status if is_running else {})
         mob = task_status.get('mob') if is_running else None
         fleets = _fleet_rows(config_data, data, order, now, mob=mob)
+        # Not running, predict if mob fleet and boss fleet will be swapped in the next sortie,
+        # using battles of the last sortie on the same stage
+        if auto_swap and not is_running and data['Fleet'].get('Fleet2') and order in FLEET_ORDER_SWAP:
+            try:
+                same_stage = stage_name(task_status.get('stage')) == stage_name(data['Campaign'].get('Name', ''))
+                battle = int(task_status.get('battle_total')) if same_stage else 0
+            except (TypeError, ValueError):
+                battle = 0
+            reduce = 4 if data['Campaign'].get('Use2xBook') else 2
+            next_run = _to_datetime(data['Scheduler'].get('NextRun'))
+            predicted = _predict_swap(fleets, order, battle, reduce, now, next_run) if battle > 0 else None
+            if predicted is not None:
+                roles = FLEET_ORDER_ROLE[predicted]
+                for row in fleets:
+                    row['role'] = roles[row['slot'] - 1]
+                    row['next'] = row['role'] == 'mob'
         state = _task_state(task_status, is_running, _to_datetime(data['Scheduler'].get('NextRun')), now)
         if state.get('fleet'):
             for fleet in fleets:
@@ -535,6 +677,7 @@ def build_rows(config_data, status, running_task=None, now=None):
             # Rotation selected but disabled by invalid fleets
             'rotate_invalid': data['Fleet'].get('FleetOrder') == FLEET_ORDER_ROTATE and not is_rotate(data['Fleet']),
             'dorm': dorm_layout(data['Fleet'])[0],
+            'dorm_expected': dorm_expected(data),
             'dorm_mismatch': dorm_mismatch(data),
             'calculate': 'calculate' in str(data['Emotion'].get('Mode', '')),
             'fleets': fleets,
@@ -581,7 +724,7 @@ def build_groups(config_data, status, running_task=None, now=None):
         else:
             group = {'numbers': numbers, 'tasks': [], 'fleets': row['fleets'], 'synced': None,
                      'reversed': False, 'dorm': None, 'dorm_mismatch': [], 'rotate_invalid': False,
-                     '_widest': row['fleets']}
+                     'conflict': [], '_widest': row['fleets']}
             groups.append(group)
         group['tasks'].append(row)
         if len(numbers) > len(group['numbers']):
@@ -598,8 +741,20 @@ def build_groups(config_data, status, running_task=None, now=None):
             group['dorm'] = 2
         group['rotate_invalid'] = group['rotate_invalid'] or row['rotate_invalid']
     for group in groups:
-        # Fleets not placed as the dorm layout of this group, each fleet once
-        seen = set()
+        # Game fleets placed differently in dorm by tasks, dorm can't fit both, such as mob fleet in Main
+        # and boss fleet in Event
+        layouts = {}
+        for row in group['tasks']:
+            if row['dorm'] != group['dorm']:
+                continue
+            for number, recover in row['dorm_expected'].items():
+                layouts.setdefault(number, {}).setdefault(recover, []).append(row['task'])
+        conflict = [number for number, recovers in layouts.items() if len(recovers) > 1]
+        group['conflict'] = [{'number': number, 'tasks': [task for tasks in layouts[number].values() for task in tasks]}
+                             for number in sorted(conflict)]
+        # Fleets not placed as the dorm layout of this group, each fleet once.
+        # Not shown for conflicting fleets, setting can't match all tasks.
+        seen = set(conflict)
         for row in group['tasks']:
             if row['dorm'] != group['dorm']:
                 continue

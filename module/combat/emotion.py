@@ -5,18 +5,12 @@ import numpy as np
 
 from module.base.decorator import cached_property
 from module.base.utils import random_normal_distribution_int
-from module.campaign.sortie_status import (DIC_LIMIT, DIC_RECOVER_MAX, EMOTION_NOT_SHARED, emotion_current,
-                                           emotion_slots, emotion_speed, latest_emotion, status_battle,
-                                           status_update)
+from module.campaign.sortie_status import (DIC_LIMIT, DIC_RECOVER_MAX, EMOTION_NOT_SHARED, FLEET_ORDER_SWAP,
+                                           emotion_current, emotion_slots, emotion_speed, latest_emotion,
+                                           status_battle, status_update)
 from module.config.config import AzurLaneConfig
 from module.exception import ScriptEnd, ScriptError, RequestHumanTakeover
 from module.logger import logger
-
-# Swap mob fleet and boss fleet, used when Fleet.FleetOrder is fleet1_mob_fleet2_boss_auto_swap
-FLEET_ORDER_SWAP = {
-    'fleet1_mob_fleet2_boss': 'fleet1_boss_fleet2_mob',
-    'fleet1_boss_fleet2_mob': 'fleet1_mob_fleet2_boss',
-}
 
 
 class FleetEmotion:

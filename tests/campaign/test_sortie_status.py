@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 import module.campaign.sortie_status as sortie_status
 from module.campaign.sortie_status import build_groups, build_rows, emotion_current, emotion_slots, format_time, \
-    emotion_synced_recently, latest_emotion, stage_name, status_battle, status_read, status_update
+    emotion_follow_fleet, emotion_synced_recently, latest_emotion, stage_name, status_battle, status_read, \
+    status_update
 from module.combat.emotion import FleetEmotion
 
 NOW = datetime(2026, 10, 31, 18, 0, 0)
@@ -224,6 +225,58 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(len(row['fleets']), 1)
         self.assertEqual(row['fleets'][0]['role'], 'all')
         self.assertFalse(row['auto_swap'])
+        # Mob and boss order without fleet 2, fleet 1 fights all battles
+        for order in ['fleet1_mob_fleet2_boss', 'fleet1_boss_fleet2_mob']:
+            row = build_rows({'Main': task_data(fleet2=0, order=order)}, {}, now=NOW)[0]
+            self.assertEqual([f['role'] for f in row['fleets']], ['all'])
+            self.assertIsNone(row['dorm'])
+
+    def test_predict_swap(self):
+        # 7-3 has 5 battles in the last sortie, mob fleet needs 40 + 4 * 2
+        status = {'Main': {'state': 'end', 'stage': 'campaign_7_3', 'battle_total': 5}}
+        for value1, value2, roles in [
+            (52, 50, ['mob', 'boss']),
+            (47, 50, ['boss', 'mob']),
+            # Neither is enough, keep the order in user config
+            (40, 40, ['mob', 'boss']),
+        ]:
+            data = task_data(value1=value1, value2=value2, next_run='2026-10-31 17:00:00')
+            row = build_rows({'Main': data}, status, now=NOW)[0]
+            self.assertEqual([f['role'] for f in row['fleets']], roles)
+            self.assertEqual([f['next'] for f in row['fleets']], [role == 'mob' for role in roles])
+        # Delayed to 18:12, fleet 1 recovers 2 * 4 and is enough at that time
+        row = build_rows({'Main': task_data(value1=40, value2=50, next_run='2026-10-31 18:12:00')}, status,
+                         now=NOW)[0]
+        self.assertEqual([f['role'] for f in row['fleets']], ['mob', 'boss'])
+        # Battles unknown, another stage
+        status['Main']['stage'] = 'campaign_7_4'
+        row = build_rows({'Main': task_data(value1=47, value2=50)}, status, now=NOW)[0]
+        self.assertEqual([f['role'] for f in row['fleets']], ['mob', 'boss'])
+        self.assertFalse(any(f.get('next') for f in row['fleets']))
+        # Running task shows the actual order
+        status = {'Main': {'state': 'map', 'stage': 'campaign_7_3', 'battle_total': 5}}
+        row = build_rows({'Main': task_data(value1=47, value2=50)}, status, running_task='Main', now=NOW)[0]
+        self.assertFalse(any(f.get('next') for f in row['fleets']))
+
+    def test_role_conflict(self):
+        data = {'Main': task_data(order='fleet1_mob_fleet2_boss'), 'Event': task_data(order='fleet1_boss_fleet2_mob')}
+        data['Main']['Emotion'].update(Fleet1Recover='dormitory_floor_2', Fleet2Recover='dormitory_floor_1')
+        data['Event']['Emotion'].update(Fleet1Recover='dormitory_floor_2', Fleet2Recover='dormitory_floor_1')
+        data['Hard'] = task_data(order='fleet1_all_fleet2_standby')
+        group = build_groups(data, {}, now=NOW)[0]
+        # Hard has no dorm layout, not a conflicting task
+        self.assertEqual(group['conflict'], [{'number': 1, 'tasks': ['Main', 'Event']},
+                                             {'number': 2, 'tasks': ['Main', 'Event']}])
+        # Settings can't match both tasks, not shown as dorm mismatch
+        self.assertEqual(group['dorm_mismatch'], [])
+        # Dorm not used by either task
+        for task in ['Main', 'Event']:
+            data[task]['Emotion'].update(Fleet1Recover='not_in_dormitory', Fleet2Recover='not_in_dormitory')
+        self.assertEqual(build_groups(data, {}, now=NOW)[0]['conflict'], [])
+        # Same roles, no conflict
+        data['Main']['Emotion'].update(Fleet1Recover='dormitory_floor_2', Fleet2Recover='dormitory_floor_1')
+        data['Event']['Fleet']['FleetOrder'] = 'fleet1_mob_fleet2_boss'
+        self.assertEqual(build_groups(data, {}, now=NOW)[0]['conflict'], [])
 
     def test_disabled(self):
         self.assertEqual(build_rows({'Main': task_data(enable=False)}, {}, now=NOW), [])
@@ -282,6 +335,34 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(latest_emotion(data, 1), (99, datetime(2026, 10, 31, 18, 30)))
         self.assertEqual(latest_emotion(data, 1, exclude_task='Event')[0], 52)
         self.assertIsNone(latest_emotion(data, 5))
+
+    def test_latest_emotion_tie(self):
+        # Main swapped Fleet1 and Fleet2 after emotion written to all slots at once,
+        # its slots keep values of the previous game fleets with the same record time
+        data = {task: task_data(value1=85, value2=104) for task in ['Main', 'Main2', 'Main3']}
+        data['Main']['Fleet'].update(Fleet1=2, Fleet2=1)
+        self.assertEqual(latest_emotion(data, 2)[0], 104)
+        self.assertEqual(latest_emotion(data, 1)[0], 85)
+
+    def test_emotion_follow_fleet(self):
+        data = {task: task_data(value1=85, value2=104) for task in ['Main', 'Event']}
+        data['Event']['Emotion']['Fleet1Record'] = '2026-10-31 18:30:00'
+        # Swap game fleets in Main
+        out = emotion_follow_fleet(data, {'Main.Fleet.Fleet1': 2, 'Main.Fleet.Fleet2': 1})
+        self.assertEqual(out, {
+            'Main.Emotion.Fleet1Value': 104, 'Main.Emotion.Fleet1Record': '2026-10-31 18:00:00',
+            'Main.Emotion.Fleet2Value': 85, 'Main.Emotion.Fleet2Record': '2026-10-31 18:30:00',
+        })
+        # Unchanged fleet, emotion set by user together, or fleet removed
+        self.assertEqual(emotion_follow_fleet(data, {'Main.Fleet.Fleet1': 1}), {})
+        self.assertEqual(emotion_follow_fleet(data, {'Main.Fleet.Fleet1': 2, 'Main.Emotion.Fleet1Value': 50}), {})
+        self.assertEqual(emotion_follow_fleet(data, {'Main.Fleet.Fleet2': 0}), {})
+        # Game fleet not recorded by any task, recovers as a new fleet
+        self.assertEqual(emotion_follow_fleet(data, {'Event.Fleet.Fleet2': 5}),
+                         {'Event.Emotion.Fleet2Record': '2020-01-01 00:00:00'})
+        # Not shared tasks and other settings are ignored
+        data['GemsFarming'] = task_data()
+        self.assertEqual(emotion_follow_fleet(data, {'GemsFarming.Fleet.Fleet1': 2, 'Main.Fleet.FleetOrder': 'x'}), {})
 
     def test_emotion_synced_recently(self):
         status = {'_EmotionSync': {'time': '2026-10-31 17:55:00', 'fleets': {'1': {}, '2': {}}}}

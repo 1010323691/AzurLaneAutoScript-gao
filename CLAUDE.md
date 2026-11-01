@@ -53,6 +53,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 写入点：`CampaignBase.sortie_status_map_entered`（进图后）、`Emotion.reduce` / `wait` / `check_reduce`、`handle_low_emotion_withdraw`、`handle_campaign_defeat`、`CampaignRun.oil_limit_delay`（石油低于 `max(500, StopCondition.OilLimit)` 时，进图前检查和自律寻敌途中检查两条路径共用，推迟时间仍是上游的随机 2～4 小时，状态里记石油数和下限）、`CampaignEnd`。写失败只记 warning，面板渲染异常只记日志，都不影响推图和总览刷新。
      - 推迟原因只有在 NextRun 与记录的时间相差 1 分钟以内时才显示，被用户或别的逻辑改过 NextRun 就退回「下次出击」。再次出击进图时 `sortie_status_map_entered` 用 `reset=True` 清掉旧原因；任务运行中一律显示运行状态。
      - **心情按游戏舰队编号共用**：心情是游戏舰队的属性，所有带 `Emotion` 和 `Fleet` 分组的任务中，`Fleet.Fleet{1,2}` 编号相同的槽位共用一份心情。`FleetEmotion.value / record` 取这些槽位里 `Record` 最新的一份（`latest_emotion`）；`Emotion.record()` 通过 `record_shared()` 用 `cross_set` 同时写进其他任务。`Recover / Oath / Control` 仍是各任务自己的设置。GemsFarming 不参与共用（`EMOTION_NOT_SHARED`）：它会换船，并按新船写心情。
+     - **改舰队编号时心情跟着游戏舰队走**：心情值存在槽位里，`record_shared` 会同时写所有槽位，记录时间相同。在设置页或切换方案改了 `Fleet.Fleet{1,2,3}` 后，槽位里留着旧舰队的心情，和新舰队真实记录的时间一样，`latest_emotion` 会按任务顺序取到错的值（2026-11-01：方案对调 1、2 队后，第 2 队显示成第 1 队的心情）。现在 GUI 的 `_save_config` 和 `fleet_preset_apply` 调 `emotion_follow_fleet()`，把新舰队的心情复制进该槽位；没有任何任务记录过的舰队，`Record` 重置为 2020-01-01（视为满心情，和新建配置一样）。`latest_emotion` 遇到同一时间、不同数值时取多数槽位的值，用来修复已经错位的旧数据。正在运行的任务内存里仍是旧编号，改编号后最好等任务结束。
   14. **心情不够回港等待前，先去寮舍同步真实心情**（`module/combat/emotion_sync.py`）：
      - 触发：条件都在 `emotion_sync_available()`：本次任务还没同步过、日服、任务名正好是 `Main` 或 `Event`（主线2/3、活动 A～D、GemsFarming 等可能用别的舰队，寮舍里不是它们的船）、心情模式为计算。每次任务只同步一次，有两个入口：
        - 任务开始、进入出击循环之前，由 `emotion_sync_start()` 同步。如果开局就在地图里或自律菜单里（例如重启后接着打），去不了寮舍，就跳过，留给下一条。主线和活动用同一组舰队，前后接着跑时，`EMOTION_SYNC_INTERVAL`（10 分钟）内同步过这些游戏舰队就不再去（`emotion_synced_recently`）。
@@ -73,6 +74,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 低心情弹窗：撤退后 `check_reduce` 若已轮换到另一支够心情的道中队，弹窗那队不再出击，`handle_low_emotion_withdraw` 改为 `task_delay(minute=0)` 立即重新出击，不按弹窗那队的恢复时间推迟。
      - 面板：标题加「道中轮换」，三队各一行（运行中按状态文件的 `mob` 字段标出这次出击的道中队，另一队标「轮休」）；轮换任务和共用其 1、2 队的任务合成一组、每队只显示一次；每组底部显示寮舍摆放提醒（两队：Boss 1 层、道中 2 层；三队：第 3 队 1 层、第 1 队 2 层），即 `build_groups` 的 `dorm`。
      - 面板补充：职能选了轮换但三队编号无效时红字提示「轮换未生效」（`rotate_invalid`）；不运行时按心情较高者预测下次道中队，标「道中 · 下次」，另一队标「轮休」（同值时第 1 队优先）；寮舍提醒下方对照各队「心情回复」设置，不符合布局（`dorm_layout`：两队为 Boss 一层、道中二层；轮换为三队一层、一队二层、二队不进寮舍）时逐队红字提示（`dorm_mismatch`），所有队都是「未放置于后宅」时视为不用寮舍、不提示。方案栏的「当前方案」随面板刷新更新（只重绘该行，不打断输入）。
+     - 其他职能的显示：道中/Boss 分工但第 2 队为 0 时，实际由第 1 队打全部（`FLEET_BOSS = 1`），面板标「全部」，不提示寮舍。自动互换的任务不运行时，用状态文件里同一关卡上次的战斗数（`battle_total`），按 `check_reduce` 的规则预测下次是否互换（`_predict_swap`），在下次的道中队标「下次」；换了关卡或不知道战斗数时不预测。同组任务把同一支游戏舰队摆在不同寮舍层（如主线 1 队道中、活动 1 队 Boss，或两任务的 1、2 队编号对调）时红字提示「职能冲突」（`conflict`），这些舰队不再逐队提示「回复设置不符」。`FLEET_ORDER_SWAP` 定义在 `sortie_status.py`，`emotion.py` 从这里导入。
      - 第 3 队的阵型、自律模式、步数沿用第 1 队的设置（`Fleet1Formation / Mode / Step` 按槽位生效）。还没在真机上跑过。
   16. **配置方案（一键切换）**：总览页「出击状态」面板顶部，以及主线图、活动图设置页顶部，都有「配置方案」栏：把当前设置「保存当前为」一个命名方案，或从下拉框选一个方案「切换」/「删除」。
      - 方案内容（`module/campaign/fleet_preset.py` 的 `preset_keys`）：`Fleet` 整组、`Submarine` 整组、`Emotion.Mode` 和各队 `Control / Recover / Oath`。不含心情值和记录时间（运行时状态，按游戏舰队共用）。
