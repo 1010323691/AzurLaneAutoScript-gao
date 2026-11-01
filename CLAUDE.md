@@ -22,7 +22,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   2. **舰队职能新增选项** `Fleet.FleetOrder = fleet1_mob_fleet2_boss_auto_swap`：每次出击前，按心情自动互换道中队和 Boss 队。
      - 伪值在 `AzurLaneConfig.bind()` 里解析为具体职能，同时设置 `config.FLEET_ORDER_AUTO_SWAP=True`。
      - 互换逻辑在 `module/combat/emotion.py` 的 `Emotion.check_reduce()`。
-     - 全清模式（`MAP_CLEAR_ALL_THIS_TIME`，刷三星时）要打完地图上全部敌人，但这个标志在进图时的 `map_get_info()` 才确定，晚于出击前的心情检查。所以 `enter_map` 在点关卡准备之前调用 `CampaignBase.handle_clear_all_emotion()`，按 `_map_battle_clear_all`（`spawn_data` 里全部敌人数，`FLEET_BOSS = 1` 即道中队也打 Boss 时再加 1）用 `Emotion.check_swap()`（内部调 `Emotion.check_reduce(delay=False)`，避开 `GemsEmotion` 的覆盖）重新判断换队；两种职能都不够时保持原职能，不推迟任务，进图后照常等心情。
+     - 全清模式（`MAP_CLEAR_ALL_THIS_TIME`，刷三星时）要打完地图上全部敌人，但这个标志在进图时的 `map_get_info()` 才确定，晚于出击前的心情检查。所以 `enter_map` 在点关卡准备之前调用 `CampaignBase.handle_clear_all_emotion()`，按 `_map_battle_clear_all`（`spawn_data` 里全部敌人数，`FLEET_BOSS = 1` 即道中队也打 Boss 时再加 1）用 `Emotion.check_clear_all()`（内部显式调 `Emotion.check_reduce`，避开 `GemsEmotion` 的覆盖；`GemsEmotion` 这类覆盖了 `check_reduce` 的子类仍只走 `check_swap()` 换队）重新判断换队。两种职能都不够时，点取消关掉关卡准备弹窗（`enter_map_cancel`），推迟到心情恢复并抛 `ScriptEnd('Emotion control')`，不再进图干等：日服 6-1 刷三星曾因此在图里每 5 分钟等一轮。不开自动互换的职能也同样检查。心情上限不够（`Emotion.is_reachable()`：下限加全清消耗超过上限，比如加倍书的长图）时推迟永远等不够，退回原行为：保持职能进图，图内等心情。只有部分职能够不到时，`check_reduce` 的推迟时间只按够得到的职能算，否则会按够不到的职能算出较早的时间，到点反复点开关卡又取消。
   3. **自律设置侧边栏兼容 2 个标签**：没解锁指挥喵的账号，侧边栏只有「编队 / 自律设置」两个标签，见 `module/handler/auto_search.py` 的 `fleet_preparation_sidebar_ensure()`。
   4. 地图内等待心情改用 `fleet_show_index`（`module/map/map.py`）：心情是按出击槽位记录的，反转职能时 `fleet_current_index` 是角色编号，会查错舰队。
   5. **委托条件不满足时跳过**（`module/commission/commission.py`）：点过「推荐」后，限制条件行如果仍有红色 ✗（`_commission_requirement_unmet`），抛出 `CommissionRequirementNotMet`，设置 `comm_requirement_unmet`，然后**停止派遣其余委托**：这时意味着已经没有合格的空闲舰船，换别的委托也一样派不出去。任务结束后，`run()` 把下次运行推迟到最早一个进行中委托完成的时间，也就是舰船回来时；如果没有进行中的委托，就用 `FailureInterval`。红色检测目前只在日服截图上验证过。
@@ -56,7 +56,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   14. **心情不够回港等待前，先去寮舍同步真实心情**（`module/combat/emotion_sync.py`）：
      - 触发：条件都在 `emotion_sync_available()`：本次任务还没同步过、日服、任务名正好是 `Main` 或 `Event`（主线2/3、活动 A～D、GemsFarming 等可能用别的舰队，寮舍里不是它们的船）、心情模式为计算。每次任务只同步一次，有两个入口：
        - 任务开始、进入出击循环之前，由 `emotion_sync_start()` 同步。如果开局就在地图里或自律菜单里（例如重启后接着打），去不了寮舍，就跳过，留给下一条。主线和活动用同一组舰队，前后接着跑时，`EMOTION_SYNC_INTERVAL`（10 分钟）内同步过这些游戏舰队就不再去（`emotion_synced_recently`）。
-       - `CampaignRun.run()` 捕获 `ScriptEnd('Emotion control')`（来源是进图前 `check_reduce` 或低心情弹窗撤退）后，由 `emotion_sync_retry()` 同步。同步成功就 `task_delay(minute=0)` 撤销推迟，回到循环开头重新 `check_reduce`：够了直接出击；还不够再抛一次 `ScriptEnd`，这时已同步过，直接按真实值推迟。开局已同步过时不再去寮舍。
+       - `CampaignRun.run()` 捕获 `ScriptEnd('Emotion control')`（来源是进图前 `check_reduce`、全清检查 `check_clear_all` 或低心情弹窗撤退）后，由 `emotion_sync_retry()` 同步。同步成功就 `task_delay(minute=0)` 撤销推迟，回到循环开头重新 `check_reduce`：够了直接出击；还不够再抛一次 `ScriptEnd`，这时已同步过，直接按真实值推迟。开局已同步过时不再去寮舍。
      - 流程：`page_dorm` → `DORM_TRAINING_ENTER`（左下角「訓練 6/6」）→ 弹窗的「訓練」「休憩」两个标签页（选中的标签模板能匹配上，未选中的颜色是反的）→ 每页 6 张卡，读最后两行コンディション和回復速度（`ButtonGrid` 间距 170）→ 关闭弹窗。每页取心情最低的船。
      - 对应：按用户配置里的基础职能（`cross_get` 读原始 `Fleet.FleetOrder`，去掉 `_auto_swap`，不受本次互换影响），「訓練」页 = Boss 队，「休憩」页 = 道中队。「全部 / 待机」职能不同步。
      - 写入：`Value` = 最低心情，`Record` = 现在。恢复速度换算成 `Recover / Oath`（20 不在寮舍、30 不在寮舍 + 誓约、40 一层、50 二层、60 二层 + 誓约），不在表里的速度保留原设置。写到所有共用该游戏舰队的任务（`emotion_apply`），结果写进状态文件的 `_EmotionSync` 键，面板显示同步时间。写入用 `emotion.config`：`CampaignRun.campaign.config` 是深拷贝，`Emotion` 读的是它。

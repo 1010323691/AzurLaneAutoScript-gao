@@ -340,7 +340,15 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         """
         Emotion was checked before entering map with _map_battle, battles until boss.
         If MAP_CLEAR_ALL_THIS_TIME, all enemies are cleared and mob fleet fights much more battles,
-        swap fleet order before fleet preparation if mob fleet doesn't have enough emotion.
+        swap fleet order before fleet preparation if mob fleet doesn't have enough emotion,
+        or cancel map preparation and delay current task if neither fleet order works.
+
+        Pages:
+            in: MAP_PREPARATION
+            out: MAP_PREPARATION, or stage page if delayed
+
+        Raises:
+            ScriptEnd: Emotion control
         """
         if not self.config.MAP_CLEAR_ALL_THIS_TIME:
             return
@@ -348,7 +356,11 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         if not battle:
             return
         logger.info(f'MAP_CLEAR_ALL_THIS_TIME, check emotion again with {battle} battles')
-        self.emotion.check_swap(battle)
+        try:
+            self.emotion.check_clear_all(battle)
+        except ScriptEnd:
+            self.enter_map_cancel()
+            raise
 
     @property
     def _map_battle_clear_all(self):

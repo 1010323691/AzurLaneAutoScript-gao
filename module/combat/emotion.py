@@ -306,6 +306,7 @@ class Emotion:
             # emotion may recover during mob battles, and non-auto-search maps wait emotion before boss battle.
             swapped = FLEET_ORDER_SWAP[method]
             recovered = None
+            capped = None
             for order, relax in [(method, False), (swapped, False), (method, True), (swapped, True)]:
                 recover_time = self.get_recovered(order, battle, relax_boss=relax)
                 if recover_time <= datetime.now():
@@ -313,7 +314,13 @@ class Emotion:
                         logger.info(f'Emotion of mob fleet is not enough, swap fleet order: {method} -> {order}')
                         self.config.override(Fleet_FleetOrder=order)
                     return
+                # Emotion is capped, the fleet order would never be enough at recover_time
+                if not self.is_reachable(order, battle):
+                    capped = recover_time if capped is None else min(capped, recover_time)
+                    continue
                 recovered = recover_time if recovered is None else min(recovered, recover_time)
+            if recovered is None:
+                recovered = capped
             if not delay:
                 logger.info(f'Emotion of both fleet orders is not enough, keep fleet order: {method}')
                 return
@@ -337,7 +344,34 @@ class Emotion:
             return
         Emotion.check_reduce(self, battle, delay=False)
 
-    def get_recovered(self, method, battle, relax_boss=False):
+    def check_clear_all(self, battle):
+        """
+        Check emotion again before fleet preparation, after MAP_CLEAR_ALL_THIS_TIME is known.
+        Mob fleet fights all enemies on map, much more than battles until boss.
+        Delay current task if emotion is not enough, instead of entering map and waiting emotion in map.
+
+        Args:
+            battle (int): Battles to clear all enemies
+
+        Raise:
+            ScriptEnd: Delay current task to prevent emotion control in the future.
+        """
+        if not self.is_calculate:
+            return
+        # Subclasses like GemsEmotion override check_reduce() with a different behaviour, keep it unchanged
+        if type(self).check_reduce is not Emotion.check_reduce:
+            self.check_swap(battle)
+            return
+        method = self.config.Fleet_FleetOrder
+        orders = [method, FLEET_ORDER_SWAP[method]] if self.is_auto_swap else [method]
+        if not any(self.is_reachable(order, battle) for order in orders):
+            # Emotion is capped, delaying would never be enough, wait emotion in map instead
+            logger.warning(f'Emotion can never be enough for {battle} battles, enter map and wait in map')
+            self.check_swap(battle)
+            return
+        Emotion.check_reduce(self, battle)
+
+    def expected_reduce(self, method, battle, relax_boss=False):
         """
         Args:
             method (str): Fleet order
@@ -347,8 +381,7 @@ class Emotion:
                 Not relaxed if boss fleet is set to keep happy bonus, which would be lost.
 
         Returns:
-            datetime.datetime: When will all fleets have enough emotion for this campaign.
-                If already recovered, return time in the past.
+            tuple[int, int]: Emotion reduce of fleet 1 and fleet 2
         """
         def boss(fleet):
             if relax_boss and fleet.control != 'keep_exp_bonus':
@@ -366,7 +399,39 @@ class Emotion:
         else:
             raise ScriptError(f'Unknown fleet order: {method}')
 
-        battle = tuple(np.array(battle) * self.reduce_per_battle_before_entering)
+        return tuple(int(b) for b in np.array(battle) * self.reduce_per_battle_before_entering)
+
+    def is_reachable(self, method, battle):
+        """
+        Args:
+            method (str): Fleet order
+            battle (int): Battles in this campaign
+
+        Returns:
+            bool: If emotion can be enough after recovering to max, with boss fleet relaxed.
+        """
+        for fleet, reduce in zip(self.fleets, self.expected_reduce(method, battle, relax_boss=True)):
+            # Same as FleetEmotion.get_recovered()
+            if fleet.control == 'keep_exp_bonus':
+                reduce = min(reduce, 29)
+            if reduce and fleet.limit + reduce > fleet.max:
+                return False
+        return True
+
+    def get_recovered(self, method, battle, relax_boss=False):
+        """
+        Args:
+            method (str): Fleet order
+            battle (int): Battles in this campaign
+            relax_boss (bool): True to only require boss fleet above control limit,
+                not counting the emotion reduce of boss battle.
+                Not relaxed if boss fleet is set to keep happy bonus, which would be lost.
+
+        Returns:
+            datetime.datetime: When will all fleets have enough emotion for this campaign.
+                If already recovered, return time in the past.
+        """
+        battle = self.expected_reduce(method, battle, relax_boss=relax_boss)
         logger.info(f'Expect emotion reduce: {battle} ({method})')
 
         return max([f.get_recovered(b) for f, b in zip(self.fleets, battle)])
