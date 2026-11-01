@@ -3125,6 +3125,23 @@
       "DormHint3": "寮舍摆放：一、三队放后宅一、二层（三队一层训练、一队二层休憩），二队不放寮舍",
       "NoEmotion": "未开启心情计算"
     },
+    "Preset": {
+      "Title": "配置方案",
+      "Help": "保存出击舰队、心情设置（不含心情值）和潜艇设置，切换时同时写入主线图和活动图",
+      "Current": "当前方案：{name}",
+      "NoMatch": "当前设置与已保存的方案都不一致",
+      "Empty": "还没有保存的方案",
+      "Apply": "切换",
+      "Delete": "删除",
+      "DeleteConfirm": "确定删除方案「{name}」吗？删除后无法恢复",
+      "Cancel": "取消",
+      "SaveAs": "保存当前为",
+      "NamePlaceholder": "方案名称，同名会覆盖",
+      "NameEmpty": "请先填写方案名称",
+      "Saved": "已保存方案：{name}",
+      "Applied": "已切换到方案：{name}",
+      "Deleted": "已删除方案：{name}"
+    },
     "AddAlas": {
       "PopupTitle": "添加新配置",
       "NewName": "新的配置文件名",

@@ -3125,6 +3125,23 @@
       "DormHint3": "宿舍擺放：一、三隊放後宅一、二層（三隊一層訓練、一隊二層休憩），二隊不放宿舍",
       "NoEmotion": "未開啟心情計算"
     },
+    "Preset": {
+      "Title": "配置方案",
+      "Help": "儲存出擊艦隊、心情設定（不含心情值）和潛艇設定，切換時同時寫入主線圖和活動圖",
+      "Current": "目前方案：{name}",
+      "NoMatch": "目前設定與已儲存的方案都不一致",
+      "Empty": "還沒有儲存的方案",
+      "Apply": "切換",
+      "Delete": "刪除",
+      "DeleteConfirm": "確定刪除方案「{name}」嗎？刪除後無法恢復",
+      "Cancel": "取消",
+      "SaveAs": "儲存目前為",
+      "NamePlaceholder": "方案名稱，同名會覆蓋",
+      "NameEmpty": "請先填寫方案名稱",
+      "Saved": "已儲存方案：{name}",
+      "Applied": "已切換到方案：{name}",
+      "Deleted": "已刪除方案：{name}"
+    },
     "AddAlas": {
       "PopupTitle": "添加新的設定",
       "NewName": "新設定的檔案名",

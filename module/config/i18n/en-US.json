@@ -3125,6 +3125,23 @@
       "DormHint3": "Dorm: fleet 1 and 3 on floor 1 and 2 (fleet 3 floor 1 training, fleet 1 floor 2 rest), fleet 2 not in dorm",
       "NoEmotion": "Emotion calculation off"
     },
+    "Preset": {
+      "Title": "Fleet Presets",
+      "Help": "Save fleet, emotion settings (not emotion values) and submarine settings, switching writes them to both Main and Event",
+      "Current": "Current preset: {name}",
+      "NoMatch": "Current settings match no saved preset",
+      "Empty": "No saved presets",
+      "Apply": "Switch",
+      "Delete": "Delete",
+      "DeleteConfirm": "Delete preset \"{name}\"? This cannot be undone",
+      "Cancel": "Cancel",
+      "SaveAs": "Save current as",
+      "NamePlaceholder": "Preset name, overwrites the same name",
+      "NameEmpty": "Enter a preset name first",
+      "Saved": "Preset saved: {name}",
+      "Applied": "Switched to preset: {name}",
+      "Deleted": "Preset deleted: {name}"
+    },
     "AddAlas": {
       "PopupTitle": "Add new config",
       "NewName": "New name",
