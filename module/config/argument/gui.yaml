@@ -85,6 +85,8 @@ Preset:
   Empty:
   Apply:
   Delete:
+  DeleteConfirm:
+  Cancel:
   SaveAs:
   NamePlaceholder:
   NameEmpty:

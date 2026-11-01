@@ -75,8 +75,12 @@ class TestPreset(unittest.TestCase):
         # Emotion values change all the time, still the same preset
         data['Main']['Emotion']['Fleet1Value'] = 10
         self.assertEqual(preset_current(data, presets), 'three')
+        # Event changed alone, Main and Event no longer use the same preset
+        data['Event']['Fleet']['Fleet3'] = 0
+        self.assertIsNone(preset_current(data, presets))
+        self.assertEqual(preset_current(data, presets, tasks=['Main']), 'three')
+        self.assertEqual(preset_current(data, presets, tasks=['Event']), 'two')
         data['Main']['Fleet']['Fleet3'] = 0
-        self.assertIsNone(preset_current(data, {'three': presets['three']}))
         self.assertEqual(preset_current(data, presets), 'two')
 
 

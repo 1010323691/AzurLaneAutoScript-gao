@@ -338,8 +338,8 @@ class AlasGUI(Frame):
         """
         presets = preset_read(self.alas_name)
         config = self.alas_config.read_file(self.alas_name)
-        source = task or PRESET_TASKS[0]
-        current = preset_current(config, presets, task=source)
+        # Overview shows the preset that Main and Event are both using
+        current = preset_current(config, presets, tasks=[task] if task else None)
         names = list(presets)
 
         clear("fleet_preset")
@@ -422,6 +422,28 @@ class AlasGUI(Frame):
 
     def fleet_preset_delete(self, task):
         name = pin["_fleet_preset_select"]
+        if name not in preset_read(self.alas_name):
+            return
+
+        def confirm():
+            close_popup()
+            self.fleet_preset_delete_confirmed(task, name)
+
+        popup(
+            t("Gui.Preset.Delete"),
+            [
+                put_text(t("Gui.Preset.DeleteConfirm", name=name)),
+                put_buttons(
+                    [
+                        {"label": t("Gui.Preset.Delete"), "value": "delete", "color": "danger"},
+                        {"label": t("Gui.Preset.Cancel"), "value": "cancel", "color": "off"},
+                    ],
+                    onclick=[confirm, close_popup],
+                ),
+            ],
+        )
+
+    def fleet_preset_delete_confirmed(self, task, name):
         presets = preset_read(self.alas_name)
         if presets.pop(name, None) is None:
             return

@@ -134,12 +134,20 @@ def preset_modified(config_data, args, preset):
     return modified
 
 
-def preset_current(config_data, presets, task=PRESET_TASKS[0]):
+def preset_current(config_data, presets, tasks=None):
     """
+    Args:
+        config_data (dict): User config
+        presets (dict): Result of preset_read()
+        tasks (list[str]): Tasks to compare, PRESET_TASKS by default.
+
     Returns:
-        str: Name of the preset that current settings of `task` are the same as, None if no such preset.
+        str: Name of the preset that current settings of all `tasks` are the same as, None if no such preset.
     """
+    if tasks is None:
+        tasks = PRESET_TASKS
     for name, preset in presets.items():
-        if preset and all(_get(config_data, f'{task}.{key}') == value for key, value in preset.items()):
+        if preset and all(_get(config_data, f'{task}.{key}') == value
+                          for task in tasks for key, value in preset.items()):
             return name
     return None

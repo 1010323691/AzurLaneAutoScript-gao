@@ -76,6 +76,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   16. **配置方案（一键切换）**：总览页「出击状态」面板顶部，以及主线图、活动图设置页顶部，都有「配置方案」栏：把当前设置「保存当前为」一个命名方案，或从下拉框选一个方案「切换」/「删除」。
      - 方案内容（`module/campaign/fleet_preset.py` 的 `preset_keys`）：`Fleet` 整组、`Submarine` 整组、`Emotion.Mode` 和各队 `Control / Recover / Oath`。不含心情值和记录时间（运行时状态，按游戏舰队共用）。
      - 切换同时写 `Main` 和 `Event`（`PRESET_TASKS`），其他任务不动；只写有变化的键，跳过本版本没有的键和不在 `option` 里的值。面板显示「当前方案」：主线图（设置页上为该页任务）的设置与哪个方案完全一致。
+     - 删除前弹窗确认。总览页的「当前方案」要求主线图和活动图都与方案一致；设置页只看本页任务。
      - 存储：`config/preset/<config_name>.json`（已加入 `.gitignore`）。不放进 `alas.json`：`ConfigUpdater` 会丢掉模板里没有的键。该模块会被 GUI 进程导入，只依赖标准库和 `module.logger`。
      - 切换直接改 `alas.json`；正在运行的任务按旧设置跑完，下一个任务读到新设置。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。

@@ -3133,6 +3133,8 @@
       "Empty": "保存済みのプリセットはありません",
       "Apply": "切り替え",
       "Delete": "削除",
+      "DeleteConfirm": "プリセット「{name}」を削除しますか？元に戻せません",
+      "Cancel": "キャンセル",
       "SaveAs": "現在の設定を保存",
       "NamePlaceholder": "プリセット名、同名は上書き",
       "NameEmpty": "先にプリセット名を入力してください",

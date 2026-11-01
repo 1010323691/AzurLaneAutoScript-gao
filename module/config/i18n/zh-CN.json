@@ -3133,6 +3133,8 @@
       "Empty": "还没有保存的方案",
       "Apply": "切换",
       "Delete": "删除",
+      "DeleteConfirm": "确定删除方案「{name}」吗？删除后无法恢复",
+      "Cancel": "取消",
       "SaveAs": "保存当前为",
       "NamePlaceholder": "方案名称，同名会覆盖",
       "NameEmpty": "请先填写方案名称",

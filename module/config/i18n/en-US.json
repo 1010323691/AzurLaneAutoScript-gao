@@ -3133,6 +3133,8 @@
       "Empty": "No saved presets",
       "Apply": "Switch",
       "Delete": "Delete",
+      "DeleteConfirm": "Delete preset \"{name}\"? This cannot be undone",
+      "Cancel": "Cancel",
       "SaveAs": "Save current as",
       "NamePlaceholder": "Preset name, overwrites the same name",
       "NameEmpty": "Enter a preset name first",
