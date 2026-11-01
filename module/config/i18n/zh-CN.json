@@ -3123,6 +3123,10 @@
       "DormReversed": "寮舍两层可能放反了：Boss 队心情比道中队低。请把 Boss 队放 1 层（训练），道中队放 2 层（休憩）",
       "DormHint2": "寮舍摆放：一、二队放后宅一、二层（Boss 队一层、道中队二层）",
       "DormHint3": "寮舍摆放：一、三队放后宅一、二层（三队一层训练、一队二层休憩），二队不放寮舍",
+      "DormMismatch": "第 {number} 舰队心情回复应为「{expected}」，当前为「{actual}」",
+      "RotateInvalid": "舰队职能选了「道中1、3队轮换」，但三队编号未设置或与一、二队重复，轮换未生效，按两队运行",
+      "NextMob": "下次",
+      "EmotionTip": "心情 {value}/{max}，心情控制下限 {limit}（竖线）",
       "NoEmotion": "未开启心情计算"
     },
     "Preset": {

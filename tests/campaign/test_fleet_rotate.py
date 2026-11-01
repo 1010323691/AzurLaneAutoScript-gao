@@ -306,8 +306,15 @@ class TestSortieStatusRotate(unittest.TestCase):
     def test_three_fleets_not_running(self):
         row = build_rows({'Main': task_data()}, {}, now=NOW)[0]
         self.assertTrue(row['rotate'])
-        self.assertEqual([(f['number'], f['role']) for f in row['fleets']], [(1, 'mob'), (2, 'boss'), (3, 'mob')])
+        # Fleet 3 has higher emotion, predicted as the mob fleet of the next sortie
+        self.assertEqual([(f['number'], f['role']) for f in row['fleets']], [(1, 'rest'), (2, 'boss'), (3, 'mob')])
+        self.assertTrue(row['fleets'][2].get('next'))
         self.assertEqual(row['fleets'][2]['value'], 90)
+        row = build_rows({'Main': task_data(value3=40)}, {}, now=NOW)[0]
+        self.assertEqual([f['role'] for f in row['fleets']], ['mob', 'boss', 'rest'])
+        # Same emotion, fleet 1 first
+        row = build_rows({'Main': task_data(value3=52)}, {}, now=NOW)[0]
+        self.assertEqual([f['role'] for f in row['fleets']], ['mob', 'boss', 'rest'])
 
     def test_running_mob_fleet3(self):
         status = {'Main': {'state': 'battle', 'fleet': 1, 'battle': 2, 'mob': 3}}
@@ -352,6 +359,38 @@ class TestSortieStatusRotate(unittest.TestCase):
         status = {'_EmotionSync': {'time': '2026-10-31 17:50:00', 'reversed': True,
                                    'fleets': {'1': {'tab': 'rest'}, '3': {'tab': 'training'}}}}
         self.assertFalse(build_groups({'Main': task_data()}, status, now=NOW)[0]['reversed'])
+
+    def test_dorm_mismatch(self):
+        # Fleets placed as rotating layout
+        group = build_groups({'Main': task_data()}, {}, now=NOW)[0]
+        self.assertEqual(group['dorm_mismatch'], [])
+        # Boss fleet still on floor 1, fleet 3 not in dorm
+        data = task_data()
+        data['Emotion'].update(Fleet2Recover='dormitory_floor_1', Fleet3Recover='not_in_dormitory')
+        group = build_groups({'Main': data}, {}, now=NOW)[0]
+        self.assertEqual([(m['number'], m['expected'], m['actual']) for m in group['dorm_mismatch']],
+                         [(2, 'not_in_dormitory', 'dormitory_floor_1'), (3, 'dormitory_floor_1', 'not_in_dormitory')])
+        # Two fleets, boss fleet should be on floor 1
+        group = build_groups({'Main': task_data(order='fleet1_mob_fleet2_boss_auto_swap')}, {}, now=NOW)[0]
+        self.assertEqual([(m['number'], m['expected']) for m in group['dorm_mismatch']], [(2, 'dormitory_floor_1')])
+        # Dorm not used at all, no warning
+        data = task_data(order='fleet1_mob_fleet2_boss')
+        data['Emotion']['Fleet1Recover'] = 'not_in_dormitory'
+        self.assertEqual(build_groups({'Main': data}, {}, now=NOW)[0]['dorm_mismatch'], [])
+        # Shared with a task rotating mob fleet, layout of rotation is used
+        data = {'Main': task_data(), 'Event': task_data(order='fleet1_mob_fleet2_boss')}
+        self.assertEqual(build_groups(data, {}, now=NOW)[0]['dorm_mismatch'], [])
+        self.assertEqual(build_groups({'Main': task_data(order='fleet1_all_fleet2_standby')}, {}, now=NOW)[0]
+                         ['dorm_mismatch'], [])
+
+    def test_rotate_invalid(self):
+        group = build_groups({'Main': task_data(fleet3=0)}, {}, now=NOW)[0]
+        self.assertTrue(group['rotate_invalid'])
+        # Runs as two fleets, checked as two fleets
+        self.assertEqual(group['dorm'], 2)
+        self.assertFalse(build_groups({'Main': task_data()}, {}, now=NOW)[0]['rotate_invalid'])
+        self.assertFalse(build_groups({'Main': task_data(order='fleet1_mob_fleet2_boss', fleet3=0)}, {}, now=NOW)[0]
+                         ['rotate_invalid'])
 
 
 if __name__ == '__main__':

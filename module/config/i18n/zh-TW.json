@@ -3123,6 +3123,10 @@
       "DormReversed": "宿舍兩層可能放反了：Boss 隊心情比道中隊低。請把 Boss 隊放 1 層（訓練），道中隊放 2 層（休憩）",
       "DormHint2": "宿舍擺放：一、二隊放後宅一、二層（Boss 隊一層、道中隊二層）",
       "DormHint3": "宿舍擺放：一、三隊放後宅一、二層（三隊一層訓練、一隊二層休憩），二隊不放宿舍",
+      "DormMismatch": "第 {number} 艦隊心情回復應為「{expected}」，目前為「{actual}」",
+      "RotateInvalid": "艦隊職能選了「道中1、3隊輪換」，但三隊編號未設定或與一、二隊重複，輪換未生效，按兩隊運行",
+      "NextMob": "下次",
+      "EmotionTip": "心情 {value}/{max}，心情控制下限 {limit}（豎線）",
       "NoEmotion": "未開啟心情計算"
     },
     "Preset": {

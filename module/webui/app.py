@@ -100,6 +100,8 @@ patch_executor()
 patch_mimetype()
 fix_py37_subprocess_communicate()
 task_handler = TaskHandler()
+# Emotion bar turns amber within this value above the control limit
+SORTIE_EMOTION_NEAR = 10
 
 
 class AlasGUI(Frame):
@@ -341,14 +343,13 @@ class AlasGUI(Frame):
         # Overview shows the preset that Main and Event are both using
         current = preset_current(config, presets, tasks=[task] if task else None)
         names = list(presets)
+        self.fleet_preset_names = names
 
         clear("fleet_preset")
         with use_scope("fleet_preset"):
             if names:
-                if current is None:
-                    put_text(t("Gui.Preset.NoMatch")).style("--arg-help--")
-                else:
-                    put_text(t("Gui.Preset.Current", name=current)).style("--arg-help--")
+                put_scope("fleet_preset_current")
+                self.put_fleet_preset_current(current)
                 put_row(
                     [
                         put_select(
@@ -382,6 +383,32 @@ class AlasGUI(Frame):
                 ],
                 size="1fr auto",
             )
+
+    @use_scope("fleet_preset_current", clear=True)
+    def put_fleet_preset_current(self, current):
+        self.fleet_preset_shown = current
+        if current is None:
+            text, level = t("Gui.Preset.NoMatch"), "warn"
+        else:
+            text, level = t("Gui.Preset.Current", name=current), "ok"
+        put_html(f'<span class="preset-badge preset-{level}">{html.escape(text)}</span>')
+
+    def update_fleet_preset_current(self, config_data):
+        """
+        Settings may be changed by Alas (emotion sync) or on settings page,
+        update the current preset on overview without rendering the inputs again.
+        """
+        presets = preset_read(self.alas_name)
+        names = list(presets)
+        if names != getattr(self, "fleet_preset_names", names):
+            # Presets changed in another GUI session, render them all
+            self.put_fleet_preset()
+            return
+        if not names:
+            return
+        current = preset_current(config_data, presets)
+        if current != getattr(self, "fleet_preset_shown", None):
+            self.put_fleet_preset_current(current)
 
     def fleet_preset_refresh(self, task):
         if task is None:
@@ -865,6 +892,10 @@ class AlasGUI(Frame):
                 put_html(content)
             else:
                 put_text(t("Gui.Overview.CampaignNone")).style("--overview-notask-text--")
+        try:
+            self.update_fleet_preset_current(self.alas_config.data)
+        except Exception as e:
+            logger.exception(e)
 
     @staticmethod
     def _sortie_task_html(row, now) -> str:
@@ -898,15 +929,15 @@ class AlasGUI(Frame):
             state_text = t("Gui.Overview.StateWaiting", time=time_str)
 
         task_name = t(f"Task.{row['task']}.name")
-        title = f'{task_name} {row["stage"]}'
+        tags = ""
         if row["auto_swap"]:
-            title += f' · {t("Gui.Overview.AutoSwap")}'
+            tags += f'<span class="sortie-tag">{e(t("Gui.Overview.AutoSwap"))}</span>'
         if row.get("rotate"):
-            title += f' · {t("Gui.Overview.Rotate")}'
+            tags += f'<span class="sortie-tag">{e(t("Gui.Overview.Rotate"))}</span>'
         running = " sortie-head-running" if row["running"] else ""
         return (
             f'<div class="sortie-head sortie-{e(state)}{running}">'
-            f'<span class="sortie-title">{e(title)}</span>'
+            f'<span class="sortie-title">{e(task_name)} <b>{e(str(row["stage"]))}</b></span>{tags}'
             f'<span class="sortie-state">{e(state_text)}</span></div>'
         )
 
@@ -914,44 +945,72 @@ class AlasGUI(Frame):
     def _sortie_fleet_html(fleet, calculate) -> str:
         e = html.escape
         name = t("Gui.Overview.Fleet", number=fleet["number"])
-        role = t(f'Gui.Overview.Role{fleet["role"].capitalize()}')
+        role_key = fleet["role"]
+        role_text = t(f"Gui.Overview.Role{role_key.capitalize()}")
+        role = f'<span class="sortie-pill sortie-role-{e(role_key)}">{e(role_text)}</span>'
         if fleet["fighting"]:
-            role += f' · {t("Gui.Overview.Fighting")}'
+            role += f'<span class="sortie-mark sortie-mark-live">{e(t("Gui.Overview.Fighting"))}</span>'
+        elif fleet.get("next"):
+            role += f'<span class="sortie-mark">{e(t("Gui.Overview.NextMob"))}</span>'
         value = fleet["value"]
         if not calculate or value is None:
             bar = f'<span class="sortie-novalue">{e(t("Gui.Overview.NoEmotion"))}</span>'
         else:
             width = min(round(100 * value / fleet["max"]), 100)
             limit = round(100 * fleet["limit"] / fleet["max"])
-            level = "low" if value < fleet["limit"] else "ok"
+            # Near the control limit, one or two more sorties go below it
+            if value < fleet["limit"]:
+                level = "low"
+            elif value < fleet["limit"] + SORTIE_EMOTION_NEAR:
+                level = "near"
+            else:
+                level = "ok"
             speed = t("Gui.Overview.RecoverSpeed", speed=fleet["speed"])
+            tip = t("Gui.Overview.EmotionTip", value=value, max=fleet["max"], limit=fleet["limit"])
             bar = (
-                f'<span class="sortie-bar"><span class="sortie-fill sortie-{level}" style="width:{width}%"></span>'
+                f'<span class="sortie-bar" title="{e(tip)}">'
+                f'<span class="sortie-fill sortie-{level}" style="width:{width}%"></span>'
                 f'<span class="sortie-limit" style="left:{limit}%"></span></span>'
-                f'<span class="sortie-value">{value}/{fleet["max"]}</span>'
+                f'<span class="sortie-value sortie-value-{level}">{value}<small>/{fleet["max"]}</small></span>'
                 f'<span class="sortie-speed">{e(speed)}</span>'
             )
         fighting = " sortie-fighting" if fleet["fighting"] else ""
+        rest = " sortie-resting" if role_key == "rest" else ""
         return (
-            f'<div class="sortie-fleet{fighting}">'
+            f'<div class="sortie-fleet{fighting}{rest}">'
             f'<span class="sortie-name">{e(name)}</span>'
-            f'<span class="sortie-role">{e(role)}</span>{bar}</div>'
+            f'<span class="sortie-role">{role}</span>{bar}</div>'
         )
 
     def _sortie_group_html(self, group, now) -> str:
         e = html.escape
         lines = [self._sortie_task_html(row, now) for row in group["tasks"]]
         calculate = any(row["calculate"] for row in group["tasks"])
-        lines += [self._sortie_fleet_html(fleet, calculate) for fleet in group["fleets"]]
-        if group["synced"] is not None:
-            text = t("Gui.Overview.Synced", time=format_time(group["synced"], now=now))
-            lines.append(f'<div class="sortie-note">{e(text)}</div>')
+        fleets = "".join(self._sortie_fleet_html(fleet, calculate) for fleet in group["fleets"])
+        lines.append(f'<div class="sortie-fleets">{fleets}</div>')
+        # Warnings first, they need actions
+        warns = []
+        if group.get("rotate_invalid"):
+            warns.append(t("Gui.Overview.RotateInvalid"))
         if group["reversed"]:
-            text = t("Gui.Overview.DormReversed")
-            lines.append(f'<div class="sortie-note sortie-warn">{e(text)}</div>')
+            warns.append(t("Gui.Overview.DormReversed"))
+        for item in group.get("dorm_mismatch", []):
+            key = item["key"]
+            warns.append(t(
+                "Gui.Overview.DormMismatch",
+                number=item["number"],
+                expected=t(f'Emotion.Fleet{key}Recover.{item["expected"]}'),
+                actual=t(f'Emotion.Fleet{key}Recover.{item["actual"]}'),
+            ))
+        if warns:
+            items = "".join(f"<li>{e(text)}</li>" for text in warns)
+            lines.append(f'<ul class="sortie-warn" role="alert">{items}</ul>')
+        notes = []
         if group.get("dorm"):
-            text = t(f'Gui.Overview.DormHint{group["dorm"]}')
-            lines.append(f'<div class="sortie-note">{e(text)}</div>')
+            notes.append(t(f'Gui.Overview.DormHint{group["dorm"]}'))
+        if group["synced"] is not None:
+            notes.append(t("Gui.Overview.Synced", time=format_time(group["synced"], now=now)))
+        lines += [f'<div class="sortie-note">{e(text)}</div>' for text in notes]
         running = " sortie-running" if any(row["running"] for row in group["tasks"]) else ""
         return f'<div class="sortie-row{running}">{"".join(lines)}</div>'
 

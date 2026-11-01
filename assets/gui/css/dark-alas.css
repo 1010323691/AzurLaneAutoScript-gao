@@ -154,3 +154,42 @@ pre.rich-traceback-code {
 [id^="pywebio-scope-group_"] > p + p {
     color: #adb5bd;
 }
+.sortie-row.sortie-running {
+    border-left-color: #7a77bb;
+    background-color: rgba(122, 119, 187, .08);
+}
+
+.sortie-head-running .sortie-title b {
+    color: #b9b6f0;
+}
+
+.sortie-role-mob,
+.sortie-role-all {
+    background-color: rgba(122, 119, 187, .22);
+    color: #b9b6f0;
+}
+
+.sortie-role-boss {
+    background-color: rgba(240, 153, 123, .18);
+    color: #f0a589;
+}
+
+.sortie-role-rest,
+.sortie-role-standby {
+    background-color: rgba(255, 255, 255, .08);
+    color: #adb5bd;
+}
+
+.sortie-mark-live {
+    color: #81c784;
+}
+
+.preset-badge.preset-ok {
+    background-color: rgba(76, 175, 80, .2);
+    color: #81c784;
+}
+
+.preset-badge.preset-warn {
+    background-color: rgba(210, 153, 34, .22);
+    color: #e3b341;
+}
