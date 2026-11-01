@@ -1,4 +1,5 @@
 """Tests for giving up destinations that the fleet can't reach (no device interaction)."""
+import copy
 import unittest
 from unittest import mock
 
@@ -14,7 +15,7 @@ def map_8_3():
     Real case: 8-3 battle 2, fleet 1 at G5, fleet 2 at E4, submarine at C5.
     Enemies at G4, H4, E6 box fleet 1 in, but H4 was missed in full scan.
     """
-    map_ = MAP_8_3
+    map_ = copy.deepcopy(MAP_8_3)
     map_.reset()
     map_.grid_connection_initial(wall=False, portal=False)
     for grid in map_:

@@ -541,7 +541,8 @@ class Fleet(Camera, AmbushHandler):
         location = location_ensure(location)
         logger.warning(f'Fleet {self.fleet_current_index} can not reach {location2node(location)} '
                        f'after {self.WALK_UNREACHABLE_RETRY} walk timeouts, choose another target')
-        self.walk_unreachable.add((self.fleet_current_index, location))
+        # Assign a new set, don't modify the class attribute in place
+        self.walk_unreachable = self.walk_unreachable | {(self.fleet_current_index, location)}
         self.find_path_initial()
         self.map.show_cost()
         raise MapEnemyMoved
