@@ -510,7 +510,7 @@ def _fleet_rows(config_data, data, order, now, mob=None):
     return rows
 
 
-def _predict_swap(fleets, order, battle, reduce):
+def _predict_swap(fleets, order, battle, reduce, now, next_run=None):
     """
     Predict the fleet order of the next sortie when auto swapping, same as Emotion.check_reduce()
 
@@ -519,6 +519,8 @@ def _predict_swap(fleets, order, battle, reduce):
         order (str): Fleet order in user config
         battle (int): Battles in the stage
         reduce (int): Emotion reduce per battle
+        now (datetime): Time when values of fleets are calculated
+        next_run (datetime): Time of the next sortie, emotion recovers until then
 
     Returns:
         str: Fleet order, None if unknown.
@@ -540,7 +542,10 @@ def _predict_swap(fleets, order, battle, reduce):
                 expected = count * reduce
                 if keep_bonus:
                     expected = min(expected, 29)
-                if row['value'] < row['limit'] + expected:
+                value = row['value']
+                if next_run is not None and next_run > now:
+                    value = emotion_current(value, now, row['speed'] // 10, row['max'], now=next_run)
+                if value < row['limit'] + expected:
                     enough = False
             if enough:
                 return method
@@ -633,7 +638,8 @@ def build_rows(config_data, status, running_task=None, now=None):
             except (TypeError, ValueError):
                 battle = 0
             reduce = 4 if data['Campaign'].get('Use2xBook') else 2
-            predicted = _predict_swap(fleets, order, battle, reduce) if battle > 0 else None
+            next_run = _to_datetime(data['Scheduler'].get('NextRun'))
+            predicted = _predict_swap(fleets, order, battle, reduce, now, next_run) if battle > 0 else None
             if predicted is not None:
                 roles = FLEET_ORDER_ROLE[predicted]
                 for row in fleets:
@@ -730,8 +736,7 @@ def build_groups(config_data, status, running_task=None, now=None):
             for number, recover in row['dorm_expected'].items():
                 layouts.setdefault(number, {}).setdefault(recover, []).append(row['task'])
         conflict = [number for number, recovers in layouts.items() if len(recovers) > 1]
-        group['conflict'] = [{'number': number, 'tasks': [row['task'] for row in group['tasks']
-                                                          if number in row['dorm_expected']]}
+        group['conflict'] = [{'number': number, 'tasks': [task for tasks in layouts[number].values() for task in tasks]}
                              for number in sorted(conflict)]
         # Fleets not placed as the dorm layout of this group, each fleet once.
         # Not shown for conflicting fleets, setting can't match all tasks.

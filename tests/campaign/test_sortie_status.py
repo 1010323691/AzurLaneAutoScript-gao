@@ -240,9 +240,14 @@ class TestBuildRows(unittest.TestCase):
             # Neither is enough, keep the order in user config
             (40, 40, ['mob', 'boss']),
         ]:
-            row = build_rows({'Main': task_data(value1=value1, value2=value2)}, status, now=NOW)[0]
+            data = task_data(value1=value1, value2=value2, next_run='2026-10-31 17:00:00')
+            row = build_rows({'Main': data}, status, now=NOW)[0]
             self.assertEqual([f['role'] for f in row['fleets']], roles)
             self.assertEqual([f['next'] for f in row['fleets']], [role == 'mob' for role in roles])
+        # Delayed to 18:12, fleet 1 recovers 2 * 4 and is enough at that time
+        row = build_rows({'Main': task_data(value1=40, value2=50, next_run='2026-10-31 18:12:00')}, status,
+                         now=NOW)[0]
+        self.assertEqual([f['role'] for f in row['fleets']], ['mob', 'boss'])
         # Battles unknown, another stage
         status['Main']['stage'] = 'campaign_7_4'
         row = build_rows({'Main': task_data(value1=47, value2=50)}, status, now=NOW)[0]
@@ -257,7 +262,9 @@ class TestBuildRows(unittest.TestCase):
         data = {'Main': task_data(order='fleet1_mob_fleet2_boss'), 'Event': task_data(order='fleet1_boss_fleet2_mob')}
         data['Main']['Emotion'].update(Fleet1Recover='dormitory_floor_2', Fleet2Recover='dormitory_floor_1')
         data['Event']['Emotion'].update(Fleet1Recover='dormitory_floor_2', Fleet2Recover='dormitory_floor_1')
+        data['Hard'] = task_data(order='fleet1_all_fleet2_standby')
         group = build_groups(data, {}, now=NOW)[0]
+        # Hard has no dorm layout, not a conflicting task
         self.assertEqual(group['conflict'], [{'number': 1, 'tasks': ['Main', 'Event']},
                                              {'number': 2, 'tasks': ['Main', 'Event']}])
         # Settings can't match both tasks, not shown as dorm mismatch
