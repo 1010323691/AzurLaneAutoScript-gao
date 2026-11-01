@@ -312,6 +312,39 @@ class AlasGUI(Frame):
         for group, arg_dict in deep_iter(self.ALAS_ARGS[task], depth=1):
             if self.set_group(group, arg_dict, config, task):
                 self.set_navigator(group)
+        self.set_fleet3_active(task)
+
+    def set_fleet3_active(self, task):
+        """
+        Fleet 3 settings only work when Fleet.FleetOrder is fleet1_mob_fleet2_boss_fleet3_rotate,
+        disable them in other fleet orders.
+        """
+        if deep_get(self.ALAS_ARGS, [task, "Fleet", "Fleet3", "display"]) == "hide":
+            return
+        if deep_get(self.ALAS_ARGS, [task, "Fleet", "Fleet3"]) is None:
+            return
+        names = [f"{task}_Fleet_Fleet3"] + [
+            f"{task}_Emotion_Fleet3{arg}" for arg in ["Value", "Control", "Recover", "Oath"]
+        ]
+        targets = ",".join(f'[name="{name}"]' for name in names)
+        run_js(
+            f"""
+            (function () {{
+                var order = $('[name="{task}_Fleet_FleetOrder"]');
+                var targets = '{targets}';
+                function update() {{
+                    // Values of pywebio select are JSON encoded
+                    var value = order.val();
+                    try {{ value = JSON.parse(value); }} catch (e) {{}}
+                    var on = value === 'fleet1_mob_fleet2_boss_fleet3_rotate';
+                    $(targets).prop('disabled', !on);
+                    $(targets).closest('[id^="pywebio-scope-arg_container"]').css('opacity', on ? '' : '0.5');
+                }}
+                order.on('change', update);
+                update();
+            }})();
+            """
+        )
 
     @use_scope("groups")
     def set_group(self, group, arg_dict, config, task):
@@ -728,6 +761,8 @@ class AlasGUI(Frame):
         title = f'{task_name} {row["stage"]}'
         if row["auto_swap"]:
             title += f' · {t("Gui.Overview.AutoSwap")}'
+        if row.get("rotate"):
+            title += f' · {t("Gui.Overview.Rotate")}'
         running = " sortie-head-running" if row["running"] else ""
         return (
             f'<div class="sortie-head sortie-{e(state)}{running}">'
@@ -774,6 +809,9 @@ class AlasGUI(Frame):
         if group["reversed"]:
             text = t("Gui.Overview.DormReversed")
             lines.append(f'<div class="sortie-note sortie-warn">{e(text)}</div>')
+        if group.get("dorm"):
+            text = t(f'Gui.Overview.DormHint{group["dorm"]}')
+            lines.append(f'<div class="sortie-note">{e(text)}</div>')
         running = " sortie-running" if any(row["running"] for row in group["tasks"]) else ""
         return f'<div class="sortie-row{running}">{"".join(lines)}</div>'
 

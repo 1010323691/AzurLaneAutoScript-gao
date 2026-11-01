@@ -643,6 +643,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -651,7 +664,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -768,6 +782,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -1023,6 +1070,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -1031,7 +1091,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -1148,6 +1209,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -1403,6 +1497,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -1411,7 +1518,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -1528,6 +1636,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -1883,6 +2024,20 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ],
+        "display": "hide"
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_all_fleet2_standby",
@@ -2013,6 +2168,43 @@
         "display": "hide"
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119,
+        "display": "hide"
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "hide"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_red_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false,
         "display": "hide"
@@ -2300,6 +2492,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -2308,7 +2513,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -2425,6 +2631,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -2716,6 +2955,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -2724,7 +2976,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -2841,6 +3094,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -3130,6 +3416,43 @@
         "type": "checkbox",
         "value": false,
         "display": "hide"
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119,
+        "display": "hide"
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "hide"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_yellow_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Oath": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
       }
     },
     "Storage": {
@@ -3300,6 +3623,43 @@
         "display": "hide"
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119,
+        "display": "hide"
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "hide"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_yellow_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false,
         "display": "hide"
@@ -3546,6 +3906,43 @@
         "display": "hide"
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119,
+        "display": "hide"
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "hide"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_yellow_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false,
         "display": "hide"
@@ -4087,6 +4484,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -4095,7 +4505,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -4212,6 +4623,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -4520,6 +4964,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -4528,7 +4985,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -4645,6 +5103,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -4953,6 +5444,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -4961,7 +5465,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -5078,6 +5583,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -5386,6 +5924,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -5394,7 +5945,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -5511,6 +6063,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -5819,6 +6404,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -5827,7 +6425,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -5944,6 +6543,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -6242,6 +6874,19 @@
           5
         ]
       },
+      "Fleet3": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
       "FleetOrder": {
         "type": "select",
         "value": "fleet1_mob_fleet2_boss",
@@ -6250,7 +6895,8 @@
           "fleet1_boss_fleet2_mob",
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all",
-          "fleet1_mob_fleet2_boss_auto_swap"
+          "fleet1_mob_fleet2_boss_auto_swap",
+          "fleet1_mob_fleet2_boss_fleet3_rotate"
         ]
       }
     },
@@ -6368,6 +7014,39 @@
         ]
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false
       }
@@ -6648,6 +7327,43 @@
         "type": "checkbox",
         "value": false,
         "display": "hide"
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119,
+        "display": "hide"
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "hide"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_yellow_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Oath": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
       }
     },
     "Storage": {
@@ -6892,6 +7608,43 @@
         "display": "hide"
       },
       "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "Fleet3Value": {
+        "type": "input",
+        "value": 119,
+        "display": "hide"
+      },
+      "Fleet3Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "hide"
+      },
+      "Fleet3Control": {
+        "type": "select",
+        "value": "prevent_yellow_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ],
+        "display": "hide"
+      },
+      "Fleet3Oath": {
         "type": "checkbox",
         "value": false,
         "display": "hide"

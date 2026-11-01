@@ -42,6 +42,8 @@ FLEET_ORDER_ROLE = {
     'fleet1_standby_fleet2_all': ('standby', 'all'),
 }
 AUTO_SWAP_SUFFIX = '_auto_swap'
+# Fleet 1 and fleet 3 take turns as mob fleet, fleet 2 is boss fleet
+FLEET_ORDER_ROTATE = 'fleet1_mob_fleet2_boss_fleet3_rotate'
 STATUS_FOLDER = './log/status'
 # Tasks that don't share emotion with other tasks using the same game fleet
 EMOTION_NOT_SHARED = ['GemsFarming']
@@ -129,6 +131,33 @@ def emotion_synced_recently(status, numbers, minutes, now=None):
     return all(str(number) in fleets for number in numbers)
 
 
+def is_rotate(fleet):
+    """
+    Args:
+        fleet (dict): Fleet group of a task in user config
+
+    Returns:
+        bool: If mob fleet is rotated between fleet 1 and fleet 3, same conditions as AzurLaneConfig.bind()
+    """
+    if fleet.get('FleetOrder') != FLEET_ORDER_ROTATE:
+        return False
+    numbers = [fleet.get('Fleet1'), fleet.get('Fleet2'), fleet.get('Fleet3')]
+    return all(numbers) and len(set(numbers)) == 3
+
+
+def fleet_keys(fleet):
+    """
+    Args:
+        fleet (dict): Fleet group of a task in user config
+
+    Returns:
+        list[int]: Fleet.Fleet{key} in use. Fleet 3 is only used when rotating mob fleet.
+    """
+    if is_rotate(fleet):
+        return [1, 2, 3]
+    return [1, 2]
+
+
 def emotion_slots(config_data, number, exclude_task=None):
     """
     Emotion belongs to the game fleet, tasks using the same game fleet share it.
@@ -152,7 +181,7 @@ def emotion_slots(config_data, number, exclude_task=None):
             continue
         if not isinstance(data.get('Emotion'), dict) or not isinstance(data.get('Fleet'), dict):
             continue
-        for slot in [1, 2]:
+        for slot in fleet_keys(data['Fleet']):
             if data['Fleet'].get(f'Fleet{slot}') == number:
                 slots.append((task, slot))
     return slots
@@ -254,6 +283,8 @@ def _fleet_order(order, status):
     auto_swap = isinstance(order, str) and order.endswith(AUTO_SWAP_SUFFIX)
     if auto_swap:
         order = order[:-len(AUTO_SWAP_SUFFIX)]
+    if order == FLEET_ORDER_ROTATE:
+        order = 'fleet1_mob_fleet2_boss'
     # Fleet order after auto swap is only an override in Alas process
     actual = status.get('order')
     if actual in FLEET_ORDER_ROLE:
@@ -263,23 +294,40 @@ def _fleet_order(order, status):
     return order, auto_swap
 
 
-def _fleet_rows(config_data, data, order, now):
+def _fleet_rows(config_data, data, order, now, mob=None):
     """
+    Args:
+        mob (int): Game fleet in sortie slot 1 of the running task, when rotating mob fleet.
+
     Returns:
         list[dict]: Status of each fleet.
+            `slot` is the sortie slot, None for the resting mob fleet or unknown.
     """
     fleet = data.get('Fleet', {})
     emotion = data.get('Emotion', {})
     roles = FLEET_ORDER_ROLE[order]
+    rotate = is_rotate(fleet)
     rows = []
-    for index in [1, 2]:
+    for index in fleet_keys(fleet):
         number = fleet.get(f'Fleet{index}', 0)
         if not number:
             continue
+        # Fleet 3 takes slot 1 when rotating
+        slot = 1 if index == 3 else index
+        role = roles[slot - 1]
+        if rotate and index != 2:
+            if mob is None:
+                # Not running, mob fleet of the next sortie is unknown
+                slot = None
+            elif number == mob:
+                slot = 1
+            else:
+                role, slot = 'rest', None
         row = {
             'index': index,
+            'slot': slot,
             'number': number,
-            'role': roles[index - 1],
+            'role': role,
             'value': None,
             'max': None,
             'limit': None,
@@ -375,11 +423,12 @@ def build_rows(config_data, status, running_task=None, now=None):
             task_status = {}
         is_running = task == running_task
         order, auto_swap = _fleet_order(data['Fleet'].get('FleetOrder'), task_status if is_running else {})
-        fleets = _fleet_rows(config_data, data, order, now)
+        mob = task_status.get('mob') if is_running else None
+        fleets = _fleet_rows(config_data, data, order, now, mob=mob)
         state = _task_state(task_status, is_running, _to_datetime(data['Scheduler'].get('NextRun')), now)
         if state.get('fleet'):
             for fleet in fleets:
-                fleet['fighting'] = fleet['index'] == state['fleet']
+                fleet['fighting'] = fleet['slot'] == state['fleet']
         stage = task_status.get('stage') if is_running and task_status.get('stage') \
             else data['Campaign'].get('Name', '')
         rows.append({
@@ -387,6 +436,7 @@ def build_rows(config_data, status, running_task=None, now=None):
             'stage': stage_name(stage),
             'running': is_running,
             'auto_swap': auto_swap,
+            'rotate': is_rotate(data['Fleet']),
             'calculate': 'calculate' in str(data['Emotion'].get('Mode', '')),
             'fleets': fleets,
             **state,
@@ -407,7 +457,9 @@ def build_groups(config_data, status, running_task=None, now=None):
 
     Returns:
         list[dict]: Groups of `tasks` (rows of build_rows()), `fleets`, `synced` time of dorm emotion sync,
-            and `reversed` if dorm floors of mob fleet and boss fleet may be reversed.
+            `reversed` if dorm floors of mob fleet and boss fleet may be reversed,
+            and `dorm`: 3 if fleet 1 and 3 should be in dorm (rotating mob fleet),
+            2 if mob fleet and boss fleet should be, None if no hint.
     """
     rows = build_rows(config_data, status, running_task=running_task, now=now)
     sync = status.get(EMOTION_SYNC_KEY, {})
@@ -425,19 +477,24 @@ def build_groups(config_data, status, running_task=None, now=None):
                 break
         else:
             group = {'numbers': numbers, 'tasks': [], 'fleets': row['fleets'], 'synced': None,
-                     'reversed': False}
+                     'reversed': False, 'dorm': None}
             groups.append(group)
         group['tasks'].append(row)
         # Fleet roles and the fighting fleet of the running task
         if row['running']:
             group['fleets'] = row['fleets']
+        roles = {fleet['role'] for fleet in row['fleets']}
+        if row['rotate']:
+            group['dorm'] = 3
+        elif group['dorm'] is None and 'boss' in roles and 'mob' in roles:
+            group['dorm'] = 2
     for group in groups:
         if any(str(number) in synced_fleets for number in group['numbers']):
             group['synced'] = _to_datetime(sync.get('time'))
             # Both dorm tabs are fleets of this group
             tabs = [synced_fleets.get(str(number), {}).get('tab') for number in group['numbers']]
             group['reversed'] = (group['synced'] is not None and sync.get('reversed') is True
-                                 and 'training' in tabs and 'rest' in tabs)
+                                 and 'training' in tabs and 'rest' in tabs and group['dorm'] != 3)
     return groups
 
 

@@ -188,6 +188,23 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
         if self.Fleet_FleetOrder == "fleet1_mob_fleet2_boss_auto_swap":
             super().__setattr__("Fleet_FleetOrder", "fleet1_mob_fleet2_boss")
 
+        # Resolve Fleet.FleetOrder=fleet1_mob_fleet2_boss_fleet3_rotate to fleet1_mob_fleet2_boss,
+        # mob fleet is rotated between Fleet.Fleet1 and Fleet.Fleet3 in Emotion.check_reduce(),
+        # which overrides Fleet_Fleet1, so the original one is kept in FLEET_ROTATE_BASE
+        self.FLEET_ORDER_ROTATE = False
+        self.FLEET_ROTATE_BASE = 0
+        if path and deep_get(self.data, keys=path) == "fleet1_mob_fleet2_boss_fleet3_rotate":
+            base = deep_get(self.data, keys=self.bound.get("Fleet_Fleet1", ""), default=0)
+            fleet3 = getattr(self, "Fleet_Fleet3", 0)
+            if fleet3 and self.Fleet_Fleet2 and fleet3 not in [base, self.Fleet_Fleet2]:
+                self.FLEET_ORDER_ROTATE = True
+                self.FLEET_ROTATE_BASE = base
+            else:
+                logger.warning(f"Fleet order rotating mob fleet 1 and 3 requires 3 different fleets, "
+                               f"but got {[base, self.Fleet_Fleet2, fleet3]}, rotation disabled")
+        if self.Fleet_FleetOrder == "fleet1_mob_fleet2_boss_fleet3_rotate":
+            super().__setattr__("Fleet_FleetOrder", "fleet1_mob_fleet2_boss")
+
     @property
     def hoarding(self):
         minutes = int(

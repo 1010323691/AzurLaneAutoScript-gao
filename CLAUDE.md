@@ -64,6 +64,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 坑：`Ocr` 在构造时按当时的服务器选模型。国服模型会把 `40/h` 读成 `4/`，所以 OCR 对象在 `ocr_ships()` 里现建，不放在模块级（真机读错 `4/` 就是这个原因，不是动画）。`h` 不在日服模型字符表里，读 `0123456789/`，取 `/` 前面的数字。切页后等 1 秒、要求连续两次结果一致，只是防卡片入场动画的保险。点标签有 2 秒间隔，标签一直认不出时会超时退回推算值，不会点到 `GameTooManyClickError`。关弹窗：`DORM_TRAINING_ENTER` 在弹窗下面也能看到，点 × 之后 × 可能有一帧认不出，而点击其实没生效（2026-11-01 日服：弹窗没关就回去推图，认不出页面报 `GamePageUnknownError`）。所以 `_training_close` 要连续约 1 秒都看不到 ×、训练和休憩标签，才算关闭；× 还在就每 2 秒重点一次。
      - 只统计寮舍里的船；舰队里不在寮舍的船看不到。素材只有日服截图（cn 目录放的也是日服图）。2026-10-31 在真机上跑通过读取流程（读数和画面一致）；「心情不够 → 同步 → 出击 / 推迟」的完整流程还没在真机上自然触发过。
      - `sortie_status.py` 会被 GUI 进程导入（假 PIL），只能依赖标准库和 `module.logger`。不要和已有的 `module/campaign/campaign_status.py`（OCR 读石油、物资）混淆。
+  15. **舰队职能「道中 1、3 队轮换」** `Fleet.FleetOrder = fleet1_mob_fleet2_boss_fleet3_rotate`：Boss 固定第 2 队，道中由第 1、3 队轮流上。原因：道中队每战扣心情，掉得比 Boss 队快得多。
+     - 配置：新增 `Fleet.Fleet3`（默认 0 不用）和 `Emotion.Fleet3Value / Record / Control / Recover / Oath`，**只有选中该职能时生效**。设置页由 `app.py` 的 `set_fleet3_active()` 用 JS 在其他职能下禁用这些控件（pywebio 的 select 值是 JSON 编码的字符串）。单舰队任务（GemsFarming、Raid 等）在 `override.yaml` 里隐藏 Fleet3。
+     - 解析：`AzurLaneConfig.bind()` 设 `FLEET_ORDER_ROTATE=True`、`FLEET_ROTATE_BASE`（用户配置里的 `Fleet.Fleet1`），职能改写成 `fleet1_mob_fleet2_boss`。1、2、3 队编号必须都非 0 且互不相同，否则 warning 并按普通两队运行（`sortie_status.is_rotate()` 判断条件相同）。
+     - 选队：`Emotion.check_reduce()` → `check_rotate()`，第 1、3 队里心情够这张图、且当前心情更高的那队当道中（`rotate_to()` 用 `override(Fleet_Fleet1=<游戏编号>)`，编队界面自然选中它）；Boss 队按自动互换同样的 `relax_boss` 放宽；都不够时换到较早恢复的那队并推迟。`check_swap` / `check_clear_all` 同样支持。轮换时禁用继续出击。
+     - 心情：`FleetEmotion` 新增 `key`（读哪组 `Emotion.Fleet{key}*`），`fleet` 仍是出击槽位。第 3 队是 `Emotion.fleet_3`（槽位 1、key 3）；`Emotion.fleets` 是属性，按当前 `Fleet_Fleet1` 返回 `[槽位 1 的道中队, fleet_2]`，所以 `wait / reduce` / 低心情校正不用改；`all_fleets` 含轮休的那队，`update / record / show` 用它。心情共用（`emotion_slots`）只在轮换任务里把 Fleet3 算进去。
+     - 寮舍同步：轮换时「訓練」页（1 层）写第 3 队、「休憩」页（2 层）写第 1 队，Boss 第 2 队不在寮舍、不同步，也不做「放反」判断。
+     - 面板：标题加「道中轮换」，三队各一行（运行中按状态文件的 `mob` 字段标出这次出击的道中队，另一队标「轮休」）；每组底部显示寮舍摆放提醒（两队：Boss 1 层、道中 2 层；三队：第 3 队 1 层、第 1 队 2 层），即 `build_groups` 的 `dorm`。
+     - 第 3 队的阵型、自律模式、步数沿用第 1 队的设置（`Fleet1Formation / Mode / Step` 按槽位生效）。还没在真机上跑过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -105,7 +113,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）

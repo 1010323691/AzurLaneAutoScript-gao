@@ -188,6 +188,9 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         try:
             status = dict(stage=self.config.Campaign_Name, order=self.config.Fleet_FleetOrder,
                           battle_total=self._map_battle)
+            # Game fleet in slot 1, when mob fleet is rotated between fleet 1 and fleet 3
+            if self.emotion.is_rotate:
+                status['mob'] = self.config.Fleet_Fleet1
         except Exception as e:
             logger.warning(f'Failed to get sortie status: {e}')
             status = {}

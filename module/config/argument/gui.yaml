@@ -68,9 +68,13 @@ Overview:
   RoleAll:
   RoleStandby:
   AutoSwap:
+  Rotate:
+  RoleRest:
   RecoverSpeed:
   Synced:
   DormReversed:
+  DormHint2:
+  DormHint3:
   NoEmotion:
 
 AddAlas:

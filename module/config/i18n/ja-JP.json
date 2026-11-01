@@ -1033,14 +1033,26 @@
       "4": "4",
       "5": "5"
     },
+    "Fleet3": {
+      "name": "第三艦隊番号",
+      "help": "艦隊の役割が「道中1・3艦隊ローテーション」の場合のみ有効：第三艦隊と第一艦隊が交代で道中を担当し、ボスは常に第二艦隊。他の役割では無視されます",
+      "0": "0",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4",
+      "5": "5",
+      "6": "6"
+    },
     "FleetOrder": {
       "name": "Fleet.FleetOrder.name",
-      "help": "Fleet.FleetOrder.help\n「気分不足時に自動交代」を選ぶと、出撃前に計算した気分で役割を決めます：道中艦隊の気分がこの海域に足りない場合、もう一方の艦隊が道中、元の道中艦隊がボスを担当します。どちらの配置でも足りない場合のみ気分回復を待ちます。この場合、自律索敵の「続けて出撃」は使わず、毎回編成画面を経由します",
+      "help": "Fleet.FleetOrder.help\n「気分不足時に自動交代」を選ぶと、出撃前に計算した気分で役割を決めます：道中艦隊の気分がこの海域に足りない場合、もう一方の艦隊が道中、元の道中艦隊がボスを担当します。どちらの配置でも足りない場合のみ気分回復を待ちます。この場合、自律索敵の「続けて出撃」は使わず、毎回編成画面を経由します\n「道中1・3艦隊ローテーション」を選ぶと、ボスは常に第二艦隊、道中は第一・第三艦隊が交代で担当します：出撃前に気分が足りて高い方が道中を担当し、両方足りない場合のみ気分回復を待ちます。第三艦隊番号と第三艦隊の気分を設定してください。この場合も「続けて出撃」は使いません\n寮舎の配置：\n2艦隊：第一・第二艦隊を寮舎1・2階に（ボス艦隊1階、道中艦隊2階）\nローテーション：第一・第三艦隊を寮舎1・2階に（第三艦隊1階、第一艦隊2階）、第二艦隊は寮舎に置かない",
       "fleet1_mob_fleet2_boss": "fleet1_mob_fleet2_boss",
       "fleet1_boss_fleet2_mob": "fleet1_boss_fleet2_mob",
       "fleet1_all_fleet2_standby": "fleet1_all_fleet2_standby",
       "fleet1_standby_fleet2_all": "fleet1_standby_fleet2_all",
-      "fleet1_mob_fleet2_boss_auto_swap": "第一艦隊道中 第二艦隊ボス、気分不足時に自動交代"
+      "fleet1_mob_fleet2_boss_auto_swap": "第一艦隊道中 第二艦隊ボス、気分不足時に自動交代",
+      "fleet1_mob_fleet2_boss_fleet3_rotate": "第一艦隊道中・第二艦隊ボス、道中1・3艦隊ローテーション"
     }
   },
   "Submarine": {
@@ -1144,6 +1156,33 @@
     "Fleet2Oath": {
       "name": "Emotion.Fleet2Oath.name",
       "help": "Emotion.Fleet2Oath.help"
+    },
+    "Fleet3Value": {
+      "name": "第三艦隊の気分値",
+      "help": "艦隊の役割が「道中1・3艦隊ローテーション」の場合のみ有効"
+    },
+    "Fleet3Record": {
+      "name": "第三艦隊の気分記録時間",
+      "help": "艦隊の役割が「道中1・3艦隊ローテーション」の場合のみ有効"
+    },
+    "Fleet3Control": {
+      "name": "第三艦隊の気分管理",
+      "help": "艦隊の役割が「道中1・3艦隊ローテーション」の場合のみ有効",
+      "keep_exp_bonus": "keep_exp_bonus",
+      "prevent_green_face": "prevent_green_face",
+      "prevent_yellow_face": "prevent_yellow_face",
+      "prevent_red_face": "prevent_red_face"
+    },
+    "Fleet3Recover": {
+      "name": "第三艦隊の気分回復",
+      "help": "艦隊の役割が「道中1・3艦隊ローテーション」の場合のみ有効",
+      "not_in_dormitory": "not_in_dormitory",
+      "dormitory_floor_1": "dormitory_floor_1",
+      "dormitory_floor_2": "dormitory_floor_2"
+    },
+    "Fleet3Oath": {
+      "name": "第三艦隊全員ケッコン済み (+10/h)",
+      "help": "艦隊の役割が「道中1・3艦隊ローテーション」の場合のみ有効"
     }
   },
   "HpControl": {
@@ -3077,9 +3116,13 @@
       "RoleAll": "全部",
       "RoleStandby": "待機",
       "AutoSwap": "自動入れ替え",
+      "Rotate": "道中ローテーション",
+      "RoleRest": "休憩中",
       "RecoverSpeed": "+{speed}/h",
       "Synced": "{time} に寮舎から実際のコンディションを同期（寮舎の艦のみ）",
       "DormReversed": "寮舎の階が逆かもしれません：ボス艦隊のコンディションが道中艦隊より低いです。ボス艦隊を1階（訓練）、道中艦隊を2階（休憩）に配置してください",
+      "DormHint2": "寮舎：第一・第二艦隊を1・2階に（ボス艦隊1階、道中艦隊2階）",
+      "DormHint3": "寮舎：第一・第三艦隊を1・2階に（第三艦隊1階訓練、第一艦隊2階休憩）、第二艦隊は寮舎に置かない",
       "NoEmotion": "コンディション計算オフ"
     },
     "AddAlas": {

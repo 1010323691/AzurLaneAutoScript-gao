@@ -1033,14 +1033,26 @@
       "4": "4",
       "5": "5"
     },
+    "Fleet3": {
+      "name": "Fleet 3 Index",
+      "help": "Only used when Fleet Order is \"mob fleet 1 and 3 rotate\": fleet 3 and fleet 1 take turns as mob fleet, fleet 2 is always boss fleet. Ignored in other fleet orders",
+      "0": "do_not_use",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4",
+      "5": "5",
+      "6": "6"
+    },
     "FleetOrder": {
       "name": "Fleet Roles",
-      "help": "With non-auto-search, alas will pick up question marks and ammunition\nWith non-auto-search and battle <=4, Alas will force the use of \"fleet1_all_fleet2_standby\"\nWith \"Swap When Low Emotion\", fleet roles are decided by calculated emotion before each sortie: if the mob fleet does not have enough emotion for this stage, the other fleet clears mobs and the original mob fleet fights boss. Wait for emotion only if neither arrangement works. Auto search \"continue\" is not used, fleets are prepared before every sortie",
+      "help": "With non-auto-search, alas will pick up question marks and ammunition\nWith non-auto-search and battle <=4, Alas will force the use of \"fleet1_all_fleet2_standby\"\nWith \"Swap When Low Emotion\", fleet roles are decided by calculated emotion before each sortie: if the mob fleet does not have enough emotion for this stage, the other fleet clears mobs and the original mob fleet fights boss. Wait for emotion only if neither arrangement works. Auto search \"continue\" is not used, fleets are prepared before every sortie\nWith \"mob fleet 1 and 3 rotate\", fleet 2 is always the boss fleet, fleet 1 and fleet 3 take turns as mob fleet: before each sortie, the one with enough and higher emotion fights mobs, emotion is waited only if neither is enough. Set fleet 3 index and fleet 3 emotion. Auto search \"continue\" is not used either\nDorm placement:\nTwo fleets: fleet 1 and 2 on dorm floor 1 and 2 (boss fleet floor 1, mob fleet floor 2)\nRotate: fleet 1 and 3 on dorm floor 1 and 2 (fleet 3 floor 1, fleet 1 floor 2), fleet 2 not in dorm",
       "fleet1_mob_fleet2_boss": "fleet1_mob_fleet2_boss",
       "fleet1_boss_fleet2_mob": "fleet1_boss_fleet2_mob",
       "fleet1_all_fleet2_standby": "fleet1_all_fleet2_standby",
       "fleet1_standby_fleet2_all": "fleet1_standby_fleet2_all",
-      "fleet1_mob_fleet2_boss_auto_swap": "Fleet 1 Mob Fleet 2 Boss, Swap When Low Emotion"
+      "fleet1_mob_fleet2_boss_auto_swap": "Fleet 1 Mob Fleet 2 Boss, Swap When Low Emotion",
+      "fleet1_mob_fleet2_boss_fleet3_rotate": "Fleet 1 Mob Fleet 2 Boss, mob fleet 1 and 3 rotate"
     }
   },
   "Submarine": {
@@ -1144,6 +1156,33 @@
     "Fleet2Oath": {
       "name": "Fleet 2 All Oath",
       "help": "+10/hr emotion recovery is included into calculation"
+    },
+    "Fleet3Value": {
+      "name": "Fleet 3 Emotion Value",
+      "help": "Only used when Fleet Order is \"mob fleet 1 and 3 rotate\""
+    },
+    "Fleet3Record": {
+      "name": "Fleet 3 Emotion Record",
+      "help": "Only used when Fleet Order is \"mob fleet 1 and 3 rotate\""
+    },
+    "Fleet3Control": {
+      "name": "Fleet 3 Emotion Control",
+      "help": "Only used when Fleet Order is \"mob fleet 1 and 3 rotate\"",
+      "keep_exp_bonus": "Keep Happy Bonus (>120)",
+      "prevent_green_face": "Keep Content (>40)",
+      "prevent_yellow_face": "Prevent Moody (>30)",
+      "prevent_red_face": "Prevent Exhausted (>20)"
+    },
+    "Fleet3Recover": {
+      "name": "Fleet 3 Emotion Recover",
+      "help": "Only used when Fleet Order is \"mob fleet 1 and 3 rotate\"",
+      "not_in_dormitory": "Docks (20/hr)",
+      "dormitory_floor_1": "Dorm Floor 1 (40/hr)",
+      "dormitory_floor_2": "Dorm Floor 2 (50/hr)"
+    },
+    "Fleet3Oath": {
+      "name": "Fleet 3 All Oath (+10/h)",
+      "help": "Only used when Fleet Order is \"mob fleet 1 and 3 rotate\""
     }
   },
   "HpControl": {
@@ -3077,9 +3116,13 @@
       "RoleAll": "All",
       "RoleStandby": "Standby",
       "AutoSwap": "Auto swap",
+      "Rotate": "Mob rotate",
+      "RoleRest": "Resting",
       "RecoverSpeed": "+{speed}/h",
       "Synced": "Real emotion synced from dorm at {time} (ships in dorm only)",
       "DormReversed": "Dorm floors may be reversed: boss fleet has lower emotion than mob fleet. Put boss fleet on floor 1 (training) and mob fleet on floor 2 (rest)",
+      "DormHint2": "Dorm: fleet 1 and 2 on floor 1 and 2 (boss fleet floor 1, mob fleet floor 2)",
+      "DormHint3": "Dorm: fleet 1 and 3 on floor 1 and 2 (fleet 3 floor 1 training, fleet 1 floor 2 rest), fleet 2 not in dorm",
       "NoEmotion": "Emotion calculation off"
     },
     "AddAlas": {
