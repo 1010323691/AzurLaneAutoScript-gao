@@ -70,6 +70,10 @@ const createWindow = async () => {
     }
   });
 
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
   mainWindow.on('focus', function () {
     // Dev tools
     globalShortcut.register('Ctrl+Shift+I', function () {
@@ -102,9 +106,7 @@ const createWindow = async () => {
     mainWindow?.isMaximized() ? mainWindow?.restore() : mainWindow?.maximize();
   });
   ipcMain.on('window-close', function () {
-    alas.kill(function () {
-      mainWindow?.close();
-    })
+    app.quit();
   });
 
   // Tray
@@ -125,9 +127,7 @@ const createWindow = async () => {
     {
       label: 'Exit',
       click: function () {
-        alas.kill(function () {
-          mainWindow?.close();
-        })
+        app.quit();
       }
     }
   ]);
@@ -192,6 +192,24 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+
+/**
+ * Kill Alas backend before every quit, including the one from macOS Dock menu.
+ * On macOS, closing window doesn't quit the app, so window should not be closed to exit.
+ */
+let backendKilled = false;
+app.on('before-quit', (event) => {
+  if (backendKilled) {
+    return;
+  }
+  event.preventDefault();
+  alas.kill(function () {
+    backendKilled = true;
+    // Callback is synchronous if backend failed to start, app.quit() can't be nested in before-quit
+    setImmediate(() => app.quit());
+  });
 });
 
 

@@ -116,8 +116,14 @@ class Device(Screenshot, Control, AppControl):
         self.resolution_check_uiautomator2()
         # Perform benchmark
         from module.daemon.benchmark import Benchmark
-        bench = Benchmark(config=self.config, device=self)
-        method = bench.run_simple_screenshot_benchmark()
+        # Benchmark is a daemon, which disables stuck detection for the rest of this process
+        stuck_detection_disabled = 'stuck_record_check' in self.__dict__
+        try:
+            bench = Benchmark(config=self.config, device=self)
+            method = bench.run_simple_screenshot_benchmark()
+        finally:
+            if not stuck_detection_disabled:
+                self.enable_stuck_detection()
         # Set
         with self.config.multi_set():
             self.config.Emulator_ScreenshotMethod = method
@@ -325,6 +331,16 @@ class Device(Screenshot, Control, AppControl):
 
         self.click_record_check = empty_function
         self.stuck_record_check = empty_function
+
+    def enable_stuck_detection(self):
+        """
+        Undo disable_stuck_detection()
+        """
+        logger.info('Enable stuck detection')
+        self.__dict__.pop('click_record_check', None)
+        self.__dict__.pop('stuck_record_check', None)
+        self.stuck_record_clear()
+        self.click_record_clear()
 
     def app_start(self):
         if not self.config.Error_HandleError:

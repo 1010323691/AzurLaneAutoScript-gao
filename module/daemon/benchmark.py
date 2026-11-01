@@ -239,10 +239,15 @@ class Benchmark(DaemonBase, CampaignUI):
             screenshot = remove('aScreenCap', 'aScreenCap_nc')
         if self.device.is_chinac_phone_cloud:
             screenshot = remove('ADB_nc', 'aScreenCap_nc')
+        # Same as Device.method_check(), or method chosen here will fallback to auto on the next start
+        if not (23 <= sdk <= 32):
+            screenshot = remove('DroidCast', 'DroidCast_raw')
         if self.device.nemu_ipc_available():
             screenshot.append('nemu_ipc')
         if self.device.ldopengl_available():
             screenshot.append('ldopengl')
+        if self.device.is_bluestacks_air:
+            screenshot = [l for l in screenshot if 'DroidCast' not in l]
         screenshot = tuple(screenshot)
 
         self.TEST_TOTAL = 3

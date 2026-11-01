@@ -105,7 +105,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.ocr.test_numpy_ocr
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -218,6 +218,7 @@ campaign/Readme.md（活动表）── 生成活动下拉选项
 - **卡死检测**（`device.py`）：
   - `stuck_record_check()`：同一画面等待超过 60 秒（`stuck_long_wait_list` 中的按钮为 180 秒）→ `GameStuckError`；如果此时 App 已退出 → `GameNotRunningError`。
   - `click_record_check()`：最近 15 次点击里同一按钮 ≥12 次，或两个按钮各 ≥6 次 → `GameTooManyClickError`。
+  - `DaemonBase` 的子类（含 `Benchmark`）构造时会调 `disable_stuck_detection()`，这个关闭对进程后续都有效。`Device.run_simple_screenshot_benchmark()` 用完 `Benchmark` 要恢复，否则任务卡住时不会报错，只会一直空转。
   - 进入新阶段前惯例先调 `device.stuck_record_clear()` 和 `click_record_clear()`。
 
 ### 4.6 识别原语（`module/base/`）
