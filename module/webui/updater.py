@@ -37,6 +37,48 @@ class Updater(DeployConfig, GitManager, PipManager):
         else:
             return None
 
+    def run_command(self, command):
+        """
+        Log command output, stdout of GUI is not in log file when running in Electron.
+        """
+        result = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding="utf8",
+            errors="replace",
+            shell=True,
+        )
+        for line in result.stdout.splitlines():
+            logger.info(line)
+        return result.returncode
+
+    @property
+    def git_args(self) -> str:
+        """
+        Deploy settings for one git command, keep the git config of local repository untouched.
+        """
+        args = ""
+        if self.GitProxy:
+            args += f" -c http.proxy={self.GitProxy} -c https.proxy={self.GitProxy}"
+        if not self.SSLVerify:
+            args += " -c http.sslVerify=false"
+        return args
+
+    def on_update_branch(self) -> bool:
+        """
+        Returns:
+            bool: If local repository is on the branch to update.
+        """
+        branch = self.execute_output(
+            f'"{self.git}" rev-parse --abbrev-ref HEAD'
+        ).strip()
+        if branch == self.Branch:
+            return True
+        logger.warning(f"Current branch {branch} is not {self.Branch}, cannot update")
+        return False
+
     def execute_output(self, command) -> str:
         command = command.replace(r"\\", "/").replace("\\", "/").replace('"', '"')
         log = subprocess.run(
@@ -69,6 +111,10 @@ class Updater(DeployConfig, GitManager, PipManager):
     def _check_update(self) -> bool:
         self.state = "checking"
 
+        # Check here, before update stops running alas
+        if not self.AutoUpdate and not self.on_update_branch():
+            return False
+
         if State.deploy_config.GitOverCdn:
             status = self.goc_client.get_status()
             if status == "uptodate":
@@ -84,7 +130,8 @@ class Updater(DeployConfig, GitManager, PipManager):
         source = "origin"
         for _ in range(3):
             if self.execute(
-                f'"{self.git}" fetch {source} {self.Branch}', allow_failure=True
+                f'"{self.git}"{self.git_args} fetch {source} {self.Branch}',
+                allow_failure=True,
             ):
                 break
         else:
@@ -185,8 +232,37 @@ class Updater(DeployConfig, GitManager, PipManager):
             self.state = self._check_update()
 
     @retry(ExecutionError, tries=3, delay=5, logger=None)
-    def git_install(self):
+    def git_install_reset(self):
         return super().git_install()
+
+    @retry(ExecutionError, tries=3, delay=5, logger=None)
+    def git_fetch(self):
+        if self.GitOverCdn:
+            client = self.goc_client
+            if (
+                client.current_commit
+                and client.latest_commit
+                and client.download_pack()
+                and client.update_refs()
+            ):
+                return
+        self.execute(f'"{self.git}"{self.git_args} fetch origin {self.Branch}')
+
+    def git_install(self):
+        """
+        Update requested in GUI or by scheduled restart.
+        With AutoUpdate, local changes are discarded just like deploy at startup.
+        Without it, this is a request from GUI and it only fast-forwards,
+        failures from local changes won't be retried.
+        """
+        if self.AutoUpdate:
+            return self.git_install_reset()
+
+        logger.hr("Update Alas", 0)
+        if not self.on_update_branch():
+            raise ExecutionError
+        self.git_fetch()
+        self.execute(f'"{self.git}" merge --ff-only origin/{self.Branch}')
 
     @retry(ExecutionError, tries=3, delay=5, logger=None)
     def pip_install(self):
@@ -284,6 +360,12 @@ class Updater(DeployConfig, GitManager, PipManager):
         th._task.delay = get_next_time(self.schedule_time)
         yield
         while True:
+            self.read()
+            if not self.AutoUpdate:
+                logger.info("AutoUpdate is disabled, skip scheduled update")
+                th._task.delay = get_next_time(self.schedule_time)
+                yield
+                continue
             self.check_update()
             if self.state != 1:
                 th._task.delay = get_next_time(self.schedule_time)

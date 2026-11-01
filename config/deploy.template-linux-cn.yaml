@@ -20,7 +20,8 @@ Deploy:
     # [In most cases] Use true
     # [Other] Use false to when connected to an untrusted network
     SSLVerify: true
-    # Update Alas at startup
+    # Update Alas at startup and at AutoRestartTime, discarding local changes
+    # If false, only the update button in GUI works, and it keeps local changes by fast-forwarding only
     # [In most cases] Use true
     AutoUpdate: true
 
@@ -91,6 +92,7 @@ Deploy:
     # Scheduled restart time
     # If there are updates, Alas will automatically restart and update at this time every day
     # and run all alas instances that running before restarted
+    # Requires AutoUpdate
     # [Disable] null
     # [Default] 03:50
     AutoRestartTime: 03:50
