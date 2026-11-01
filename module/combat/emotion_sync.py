@@ -125,17 +125,29 @@ class EmotionSync(UI):
             out: page_dorm
         """
         timeout = Timer(10, count=20).start()
+        # DORM_TRAINING_CLOSE may not match for a frame after clicked, but the popup is still there
+        confirm = Timer(1, count=3)
         for _ in self.loop(skip_first=skip_first_screenshot):
             if timeout.reached():
                 logger.warning('Failed to close dorm training popup')
                 break
-            # End, DORM_TRAINING_ENTER is still visible below the popup
-            if self.appear(DORM_TRAINING_ENTER, offset=(20, 20)) \
-                    and not self.appear(DORM_TRAINING_CLOSE, offset=(20, 20)):
-                break
 
             if self.appear_then_click(DORM_TRAINING_CLOSE, offset=(20, 20), interval=2):
+                confirm.clear()
                 continue
+            if self.appear(DORM_TRAINING_CLOSE, offset=(20, 20)) \
+                    or self.appear(DORM_TAB_TRAINING, offset=(10, 10)) \
+                    or self.appear(DORM_TAB_REST, offset=(10, 10)):
+                confirm.clear()
+                continue
+            # End, DORM_TRAINING_ENTER is still visible below the popup, so popup has to be gone for a while
+            if self.appear(DORM_TRAINING_ENTER, offset=(20, 20)):
+                if not confirm.started():
+                    confirm.start()
+                elif confirm.reached():
+                    break
+            else:
+                confirm.clear()
 
     def _tab_read(self, tab, skip_first_screenshot=True):
         """
