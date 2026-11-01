@@ -75,6 +75,9 @@ Overview:
   DormReversed:
   DormHint2:
   DormHint3:
+  DormMismatch:
+  RotateInvalid:
+  NextMob:
   NoEmotion:
 
 Preset:

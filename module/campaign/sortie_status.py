@@ -44,6 +44,17 @@ FLEET_ORDER_ROLE = {
 AUTO_SWAP_SUFFIX = '_auto_swap'
 # Fleet 1 and fleet 3 take turns as mob fleet, fleet 2 is boss fleet
 FLEET_ORDER_ROTATE = 'fleet1_mob_fleet2_boss_fleet3_rotate'
+# Expected Emotion.Fleet*Recover of each fleet role, boss fleet on floor 1 (training), mob fleet on floor 2 (rest)
+ROLE_TO_RECOVER = {
+    'mob': 'dormitory_floor_2',
+    'boss': 'dormitory_floor_1',
+}
+# Expected Emotion.Fleet{key}Recover when rotating mob fleet, fleet 3 on floor 1, fleet 1 on floor 2, boss fleet not in dorm
+ROTATE_KEY_TO_RECOVER = {
+    1: 'dormitory_floor_2',
+    2: 'not_in_dormitory',
+    3: 'dormitory_floor_1',
+}
 STATUS_FOLDER = './log/status'
 # Tasks that don't share emotion with other tasks using the same game fleet
 EMOTION_NOT_SHARED = ['GemsFarming']
@@ -143,6 +154,55 @@ def is_rotate(fleet):
         return False
     numbers = [fleet.get('Fleet1'), fleet.get('Fleet2'), fleet.get('Fleet3')]
     return all(numbers) and len(set(numbers)) == 3
+
+
+def dorm_layout(fleet):
+    """
+    Args:
+        fleet (dict): Fleet group of a task in user config
+
+    Returns:
+        tuple[int, dict]: Dorm layout, 3 if rotating mob fleet, 2 if a mob fleet and a boss fleet, None if no layout,
+            and expected Emotion.Fleet{key}Recover of each fleet key.
+    """
+    if is_rotate(fleet):
+        return 3, dict(ROTATE_KEY_TO_RECOVER)
+    order = fleet.get('FleetOrder')
+    if not isinstance(order, str):
+        return None, {}
+    if order.endswith(AUTO_SWAP_SUFFIX):
+        order = order[:-len(AUTO_SWAP_SUFFIX)]
+    # Rotation disabled by invalid fleets, runs as two fleets
+    if order == FLEET_ORDER_ROTATE:
+        order = 'fleet1_mob_fleet2_boss'
+    roles = FLEET_ORDER_ROLE.get(order)
+    if roles is None or not fleet.get('Fleet2') or any(role not in ROLE_TO_RECOVER for role in roles):
+        return None, {}
+    return 2, {key: ROLE_TO_RECOVER[role] for key, role in zip([1, 2], roles)}
+
+
+def dorm_mismatch(data):
+    """
+    Args:
+        data (dict): Config of a task, with Fleet and Emotion groups
+
+    Returns:
+        list[dict]: `number`, `key`, `expected` and `actual` Emotion.Fleet{key}Recover of fleets
+            not placed as the dorm layout.
+    """
+    fleet = data.get('Fleet', {})
+    emotion = data.get('Emotion', {})
+    _, expected = dorm_layout(fleet)
+    # Dorm is not used at all
+    if all(emotion.get(f'Fleet{key}Recover') == 'not_in_dormitory' for key in expected):
+        return []
+    out = []
+    for key, recover in expected.items():
+        number = fleet.get(f'Fleet{key}')
+        actual = emotion.get(f'Fleet{key}Recover')
+        if number and actual is not None and actual != recover:
+            out.append({'number': number, 'key': key, 'expected': recover, 'actual': actual})
+    return out
 
 
 def fleet_keys(fleet):
@@ -370,7 +430,19 @@ def _fleet_rows(config_data, data, order, now, mob=None):
         except (KeyError, TypeError, ValueError):
             pass
         rows.append(row)
+    # Not running, predict the mob fleet of the next sortie, the one with higher emotion,
+    # same as Emotion.check_rotate() if both are enough for the stage
+    if rotate and mob is None:
+        mobs = [row for row in rows if row['index'] in [1, 3]]
+        if len(mobs) == 2:
+            chosen = max(mobs, key=lambda row: (row['value'] if row['value'] is not None else -1, -row['index']))
+            for row in mobs:
+                if row is chosen:
+                    row['slot'], row['next'] = 1, True
+                else:
+                    row['role'] = 'rest'
     return rows
+
 
 def _task_state(status, is_running, next_run, now):
     """
@@ -460,6 +532,10 @@ def build_rows(config_data, status, running_task=None, now=None):
             'running': is_running,
             'auto_swap': auto_swap,
             'rotate': is_rotate(data['Fleet']),
+            # Rotation selected but disabled by invalid fleets
+            'rotate_invalid': data['Fleet'].get('FleetOrder') == FLEET_ORDER_ROTATE and not is_rotate(data['Fleet']),
+            'dorm': dorm_layout(data['Fleet'])[0],
+            'dorm_mismatch': dorm_mismatch(data),
             'calculate': 'calculate' in str(data['Emotion'].get('Mode', '')),
             'fleets': fleets,
             **state,
@@ -504,7 +580,8 @@ def build_groups(config_data, status, running_task=None, now=None):
                     break
         else:
             group = {'numbers': numbers, 'tasks': [], 'fleets': row['fleets'], 'synced': None,
-                     'reversed': False, 'dorm': None, '_widest': row['fleets']}
+                     'reversed': False, 'dorm': None, 'dorm_mismatch': [], 'rotate_invalid': False,
+                     '_widest': row['fleets']}
             groups.append(group)
         group['tasks'].append(row)
         if len(numbers) > len(group['numbers']):
@@ -515,12 +592,21 @@ def build_groups(config_data, status, running_task=None, now=None):
             group['fleets'] = row['fleets']
         elif not any(task['running'] for task in group['tasks']):
             group['fleets'] = group['_widest']
-        roles = {fleet['role'] for fleet in row['fleets']}
-        if row['rotate']:
+        if row['dorm'] == 3:
             group['dorm'] = 3
-        elif group['dorm'] is None and 'boss' in roles and 'mob' in roles:
+        elif group['dorm'] is None and row['dorm'] == 2:
             group['dorm'] = 2
+        group['rotate_invalid'] = group['rotate_invalid'] or row['rotate_invalid']
     for group in groups:
+        # Fleets not placed as the dorm layout of this group, each fleet once
+        seen = set()
+        for row in group['tasks']:
+            if row['dorm'] != group['dorm']:
+                continue
+            for item in row['dorm_mismatch']:
+                if item['number'] not in seen:
+                    seen.add(item['number'])
+                    group['dorm_mismatch'].append(item)
         # Each fleet is shown once, fleets not used by the running task are shown as well
         shown = [fleet['number'] for fleet in group['fleets']]
         group['fleets'] = group['fleets'] + [f for f in group.pop('_widest') if f['number'] not in shown]

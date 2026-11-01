@@ -341,14 +341,13 @@ class AlasGUI(Frame):
         # Overview shows the preset that Main and Event are both using
         current = preset_current(config, presets, tasks=[task] if task else None)
         names = list(presets)
+        self.fleet_preset_names = names
 
         clear("fleet_preset")
         with use_scope("fleet_preset"):
             if names:
-                if current is None:
-                    put_text(t("Gui.Preset.NoMatch")).style("--arg-help--")
-                else:
-                    put_text(t("Gui.Preset.Current", name=current)).style("--arg-help--")
+                put_scope("fleet_preset_current")
+                self.put_fleet_preset_current(current)
                 put_row(
                     [
                         put_select(
@@ -382,6 +381,31 @@ class AlasGUI(Frame):
                 ],
                 size="1fr auto",
             )
+
+    @use_scope("fleet_preset_current", clear=True)
+    def put_fleet_preset_current(self, current):
+        self.fleet_preset_shown = current
+        if current is None:
+            put_text(t("Gui.Preset.NoMatch")).style("--arg-help--")
+        else:
+            put_text(t("Gui.Preset.Current", name=current)).style("--arg-help--")
+
+    def update_fleet_preset_current(self, config_data):
+        """
+        Settings may be changed by Alas (emotion sync) or on settings page,
+        update the current preset on overview without rendering the inputs again.
+        """
+        presets = preset_read(self.alas_name)
+        names = list(presets)
+        if names != getattr(self, "fleet_preset_names", names):
+            # Presets changed in another GUI session, render them all
+            self.put_fleet_preset()
+            return
+        if not names:
+            return
+        current = preset_current(config_data, presets)
+        if current != getattr(self, "fleet_preset_shown", None):
+            self.put_fleet_preset_current(current)
 
     def fleet_preset_refresh(self, task):
         if task is None:
@@ -865,6 +889,10 @@ class AlasGUI(Frame):
                 put_html(content)
             else:
                 put_text(t("Gui.Overview.CampaignNone")).style("--overview-notask-text--")
+        try:
+            self.update_fleet_preset_current(self.alas_config.data)
+        except Exception as e:
+            logger.exception(e)
 
     @staticmethod
     def _sortie_task_html(row, now) -> str:
@@ -917,6 +945,8 @@ class AlasGUI(Frame):
         role = t(f'Gui.Overview.Role{fleet["role"].capitalize()}')
         if fleet["fighting"]:
             role += f' · {t("Gui.Overview.Fighting")}'
+        elif fleet.get("next"):
+            role += f' · {t("Gui.Overview.NextMob")}'
         value = fleet["value"]
         if not calculate or value is None:
             bar = f'<span class="sortie-novalue">{e(t("Gui.Overview.NoEmotion"))}</span>'
@@ -949,9 +979,21 @@ class AlasGUI(Frame):
         if group["reversed"]:
             text = t("Gui.Overview.DormReversed")
             lines.append(f'<div class="sortie-note sortie-warn">{e(text)}</div>')
+        if group.get("rotate_invalid"):
+            text = t("Gui.Overview.RotateInvalid")
+            lines.append(f'<div class="sortie-note sortie-warn">{e(text)}</div>')
         if group.get("dorm"):
             text = t(f'Gui.Overview.DormHint{group["dorm"]}')
             lines.append(f'<div class="sortie-note">{e(text)}</div>')
+        for item in group.get("dorm_mismatch", []):
+            key = item["key"]
+            text = t(
+                "Gui.Overview.DormMismatch",
+                number=item["number"],
+                expected=t(f'Emotion.Fleet{key}Recover.{item["expected"]}'),
+                actual=t(f'Emotion.Fleet{key}Recover.{item["actual"]}'),
+            )
+            lines.append(f'<div class="sortie-note sortie-warn">{e(text)}</div>')
         running = " sortie-running" if any(row["running"] for row in group["tasks"]) else ""
         return f'<div class="sortie-row{running}">{"".join(lines)}</div>'
 
