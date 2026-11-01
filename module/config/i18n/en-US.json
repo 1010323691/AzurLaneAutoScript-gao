@@ -3124,6 +3124,7 @@
       "DormHint2": "Dorm: fleet 1 and 2 on floor 1 and 2 (boss fleet floor 1, mob fleet floor 2)",
       "DormHint3": "Dorm: fleet 1 and 3 on floor 1 and 2 (fleet 3 floor 1 training, fleet 1 floor 2 rest), fleet 2 not in dorm",
       "DormMismatch": "Fleet {number} emotion recover should be \"{expected}\", now \"{actual}\"",
+      "RoleConflict": "Fleet {number} has different roles in {tasks}, dorm can only fit one, use the same role",
       "RotateInvalid": "Fleet order rotates mob fleet 1 and 3, but fleet 3 is not set or same as fleet 1 or 2, running with two fleets",
       "NextMob": "Next",
       "EmotionTip": "Emotion {value}/{max}, control limit {limit} (the mark)",

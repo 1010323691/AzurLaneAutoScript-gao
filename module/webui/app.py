@@ -1005,6 +1005,9 @@ class AlasGUI(Frame):
         warns = []
         if group.get("rotate_invalid"):
             warns.append(t("Gui.Overview.RotateInvalid"))
+        for item in group.get("conflict", []):
+            tasks = " / ".join(t(f"Task.{task}.name") for task in item["tasks"])
+            warns.append(t("Gui.Overview.RoleConflict", number=item["number"], tasks=tasks))
         if group["reversed"]:
             warns.append(t("Gui.Overview.DormReversed"))
         for item in group.get("dorm_mismatch", []):

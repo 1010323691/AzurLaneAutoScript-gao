@@ -76,6 +76,7 @@ Overview:
   DormHint2:
   DormHint3:
   DormMismatch:
+  RoleConflict:
   RotateInvalid:
   NextMob:
   EmotionTip:

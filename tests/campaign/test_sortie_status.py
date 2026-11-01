@@ -225,6 +225,46 @@ class TestBuildRows(unittest.TestCase):
         self.assertEqual(len(row['fleets']), 1)
         self.assertEqual(row['fleets'][0]['role'], 'all')
         self.assertFalse(row['auto_swap'])
+        # Mob and boss order without fleet 2, fleet 1 fights all battles
+        for order in ['fleet1_mob_fleet2_boss', 'fleet1_boss_fleet2_mob']:
+            row = build_rows({'Main': task_data(fleet2=0, order=order)}, {}, now=NOW)[0]
+            self.assertEqual([f['role'] for f in row['fleets']], ['all'])
+            self.assertIsNone(row['dorm'])
+
+    def test_predict_swap(self):
+        # 7-3 has 5 battles in the last sortie, mob fleet needs 40 + 4 * 2
+        status = {'Main': {'state': 'end', 'stage': 'campaign_7_3', 'battle_total': 5}}
+        for value1, value2, roles in [
+            (52, 50, ['mob', 'boss']),
+            (47, 50, ['boss', 'mob']),
+            # Neither is enough, keep the order in user config
+            (40, 40, ['mob', 'boss']),
+        ]:
+            row = build_rows({'Main': task_data(value1=value1, value2=value2)}, status, now=NOW)[0]
+            self.assertEqual([f['role'] for f in row['fleets']], roles)
+            self.assertEqual([f['next'] for f in row['fleets']], [role == 'mob' for role in roles])
+        # Battles unknown, another stage
+        status['Main']['stage'] = 'campaign_7_4'
+        row = build_rows({'Main': task_data(value1=47, value2=50)}, status, now=NOW)[0]
+        self.assertEqual([f['role'] for f in row['fleets']], ['mob', 'boss'])
+        self.assertFalse(any(f.get('next') for f in row['fleets']))
+        # Running task shows the actual order
+        status = {'Main': {'state': 'map', 'stage': 'campaign_7_3', 'battle_total': 5}}
+        row = build_rows({'Main': task_data(value1=47, value2=50)}, status, running_task='Main', now=NOW)[0]
+        self.assertFalse(any(f.get('next') for f in row['fleets']))
+
+    def test_role_conflict(self):
+        data = {'Main': task_data(order='fleet1_mob_fleet2_boss'), 'Event': task_data(order='fleet1_boss_fleet2_mob')}
+        data['Main']['Emotion'].update(Fleet1Recover='dormitory_floor_2', Fleet2Recover='dormitory_floor_1')
+        data['Event']['Emotion'].update(Fleet1Recover='dormitory_floor_2', Fleet2Recover='dormitory_floor_1')
+        group = build_groups(data, {}, now=NOW)[0]
+        self.assertEqual(group['conflict'], [{'number': 1, 'tasks': ['Main', 'Event']},
+                                             {'number': 2, 'tasks': ['Main', 'Event']}])
+        # Settings can't match both tasks, not shown as dorm mismatch
+        self.assertEqual(group['dorm_mismatch'], [])
+        # Same roles, no conflict
+        data['Event']['Fleet']['FleetOrder'] = 'fleet1_mob_fleet2_boss'
+        self.assertEqual(build_groups(data, {}, now=NOW)[0]['conflict'], [])
 
     def test_disabled(self):
         self.assertEqual(build_rows({'Main': task_data(enable=False)}, {}, now=NOW), [])
