@@ -697,6 +697,10 @@
     "CheckPerCategory": {
       "name": "Number Checked Per Category for Enhance",
       "help": "Restricts the number of ships to be checked per category before moving onto the next if any\nSuitable enhance material is checked continously until reaching the unenhanceable state (in battle or stat full), after which this number is decremented for the current session\nRecommend to configure 3+ if there are non-max level ships in active fleet else <= 2 is generally sufficient"
+    },
+    "SortieInterval": {
+      "name": "Enhance Every N Sorties",
+      "help": "When retire mode is enhance, campaign tasks (Main, Event, etc.) go to dock and enhance outside the map after every N runs, then continue. 0 to disable\nWhen dock is full in map, ships to enhance are mostly in sortie and cannot be enhanced, so it falls back to one click retire"
     }
   },
   "OldRetire": {

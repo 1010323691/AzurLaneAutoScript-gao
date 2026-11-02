@@ -51,7 +51,8 @@
     "Enhance": {
       "ShipToEnhance": "all",
       "Filter": null,
-      "CheckPerCategory": 5
+      "CheckPerCategory": 5,
+      "SortieInterval": 5
     },
     "OldRetire": {
       "N": true,

@@ -141,6 +141,7 @@ Enhance:
     option: [ all, favourite ]
   Filter:
   CheckPerCategory: 5
+  SortieInterval: 5
 OldRetire:
   N: true
   R: true
