@@ -14,7 +14,8 @@ from module.exception import CampaignEnd, RequestHumanTakeover, ScriptEnd
 from module.handler.fast_forward import map_files, to_map_file_name
 from module.logger import logger
 from module.notify import handle_notify
-from module.ui.page import page_campaign
+from module.retire.enhancement import OCR_DOCK_AMOUNT
+from module.ui.page import page_campaign, page_dock
 
 # Minutes, skip emotion sync before sortie if synced recently
 EMOTION_SYNC_INTERVAL = 10
@@ -501,6 +502,54 @@ class CampaignRun(CampaignEvent):
         self.config.task_delay(minute=0)
         return True
 
+    def enhance_between_sorties_triggered(self):
+        """
+        Returns:
+            bool: If should enhance outside the map after this run.
+        """
+        if self.config.Retirement_RetireMode != 'enhance':
+            return False
+        interval = self.config.Enhance_SortieInterval
+        if interval <= 0:
+            return False
+        return self.run_count > 0 and self.run_count % interval == 0
+
+    def enhance_between_sorties(self):
+        """
+        When dock is full in map, ships to enhance are mostly in sortie and cannot be enhanced,
+        then it falls back to one click retire.
+        Enhance outside the map every `Enhance_SortieInterval` runs instead.
+
+        Returns:
+            bool: If enhanced.
+
+        Pages:
+            in: Any
+            out: page_dock, if enhanced
+        """
+        if not self.enhance_between_sorties_triggered():
+            return False
+
+        if not self.device.has_cached_image:
+            self.device.screenshot()
+        self.campaign.device.image = self.device.image
+        if self.campaign.is_in_map():
+            logger.info('In map, skip enhance between sorties')
+            return False
+        if self.campaign.is_in_auto_search_menu():
+            self.campaign.ensure_auto_search_exit()
+
+        logger.hr(f'Enhance after {self.run_count} runs', level=1)
+        self.campaign.ui_ensure(page_dock)
+        self.campaign.handle_dock_cards_loading()
+        total = self.campaign.enhance_ships()
+        _, remain, _ = OCR_DOCK_AMOUNT.ocr(self.device.image)
+        logger.info(f'Enhanced {total}, the remaining spare dock amount is {remain}')
+        # Same as handle_retirement(), retire directly when dock is full in map
+        self.campaign._unable_to_enhance = not total or remain < 3
+        self.device.click_record_clear()
+        return True
+
     def run(self, name, folder='campaign_main', mode='normal', total=0):
         """
         Args:
@@ -604,5 +653,11 @@ class CampaignRun(CampaignEvent):
             if self.config.task_switched():
                 self.campaign.ensure_auto_search_exit()
                 self.config.task_stop()
+            # Enhance outside the map, after stop checks to avoid a dock trip before the task stops
+            if total and self.run_count >= total:
+                break
+            self.device.stuck_record_clear()
+            self.device.click_record_clear()
+            self.enhance_between_sorties()
 
         self.campaign.ensure_auto_search_exit()

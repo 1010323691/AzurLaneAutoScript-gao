@@ -697,6 +697,10 @@
     "CheckPerCategory": {
       "name": "Enhance.CheckPerCategory.name",
       "help": "Enhance.CheckPerCategory.help"
+    },
+    "SortieInterval": {
+      "name": "出撃間隔強化",
+      "help": "退役モードが強化の場合、メイン・イベントなどの出撃タスクがこの回数出撃するたびに、マップ外でドックの強化を行ってから出撃を続ける。0で無効\nマップ内でドックが満杯の時、強化対象の多くは出撃中で強化できず、一括退役に切り替わる"
     }
   },
   "OldRetire": {

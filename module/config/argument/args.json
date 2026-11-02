@@ -342,6 +342,10 @@
       "CheckPerCategory": {
         "type": "input",
         "value": 5
+      },
+      "SortieInterval": {
+        "type": "input",
+        "value": 5
       }
     },
     "OldRetire": {

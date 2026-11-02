@@ -87,6 +87,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 现在 `Fleet._goto()` 同一目标连续 `WALK_UNREACHABLE_RETRY`（3）次走路超时（约 60 秒，中途有战斗或伏击就重新计数），调 `walk_unreachable_giveup()`：把 `(当前舰队, 目标格)` 记进 `walk_unreachable`，`find_path_initial()` 对该舰队把这些格当陆地（`CampaignMap.find_path_initial(blocked=)`），目标变成不可达，再抛 `MapEnemyMoved`，由 `execute_a_battle` 重跑战斗函数改选别的目标。任一舰队走到新格子就清空，进图时也清空。
      - 只在 `CampaignBase.execute_a_battle` 里生效（`walk_unreachable_enabled`）：大世界的 `OSFleet._goto` 和 `map_init` 等战斗循环外的 `goto` 没人捕获 `MapEnemyMoved`，保持原来的无限重试。改选 10 次都没打成就按上游走「No combat executed」撤退。
      - 目标格正上方是潜艇时（第 11 条），前两次超时仍先切换舰队对焦，第 3 次直接放弃。还没在真机上触发过。
+  18. **出击间隔图外强化** `Enhance.SortieInterval`（默认 5，0 关闭；只在 `Retirement.RetireMode = enhance` 时生效）：图内船坞满时，要强化的船大多在出击中，强化不了（`total = 0`），会回退到一键退役。
+     - 现在 `CampaignRun.run()` 每轮结束、各停止条件和 `task_switched` 都检查过之后调 `enhance_between_sorties()`（任务马上要停时不白跑船坞）：`run_count` 是间隔的倍数时，先关自律结算菜单（`ensure_auto_search_exit`），去 `page_dock` 跑 `enhance_ships()`，下一轮开头再由 `ensure_campaign_ui` 回关卡。还在地图里就跳过这一次。
+     - 强化后没强化到船或空位少于 3 时，设置 `campaign._unable_to_enhance`，图内船坞满时直接一键退役，和 `handle_retirement` 的判断相同。
+     - 所有走 `CampaignRun.run()` 的任务都生效（主线、主线 2/3、活动、活动 2、GemsFarming 等）。GemsFarming 换旗舰后重新进 `run()`，计数从 0 开始。还没在真机上跑过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -128,7 +132,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.campaign.test_enhance_between_sorties tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
