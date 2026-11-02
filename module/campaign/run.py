@@ -654,6 +654,8 @@ class CampaignRun(CampaignEvent):
                 self.campaign.ensure_auto_search_exit()
                 self.config.task_stop()
             # Enhance outside the map, after stop checks to avoid a dock trip before the task stops
+            if total and self.run_count >= total:
+                break
             self.device.stuck_record_clear()
             self.device.click_record_clear()
             self.enhance_between_sorties()
