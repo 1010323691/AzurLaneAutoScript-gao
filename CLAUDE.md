@@ -91,6 +91,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 现在 `CampaignRun.run()` 每轮结束、各停止条件和 `task_switched` 都检查过之后调 `enhance_between_sorties()`（任务马上要停时不白跑船坞）：`run_count` 是间隔的倍数时，先关自律结算菜单（`ensure_auto_search_exit`），去 `page_dock` 跑 `enhance_ships()`，下一轮开头再由 `ensure_campaign_ui` 回关卡。还在地图里就跳过这一次。
      - 强化后没强化到船或空位少于 3 时，设置 `campaign._unable_to_enhance`，图内船坞满时直接一键退役，和 `handle_retirement` 的判断相同。
      - 所有走 `CampaignRun.run()` 的任务都生效（主线、主线 2/3、活动、活动 2、GemsFarming 等）。GemsFarming 换旗舰后重新进 `run()`，计数从 0 开始。还没在真机上跑过。
+  19. **大世界接着打当前海域、修理后再打时切回 `OpsiFleet.Fleet`**：上游只在各任务进入新海域前 `fleet_set`。任务开始时已在海图里（上次中断留下的），`os_init()` 直接对当前海域跑自律寻敌；舰队全灭后游戏会自动选中下一支活着的舰队，`run_auto_search()` 修理后回原海域接着打。这两条路径都不切舰队，2026-11-05 日服 `OpsiExplore` 在 101 用别的舰队连败 5 次。
+     - 现在两处都先调 `OSMap.fleet_set_configured()`：任务绑定了 `OpsiFleet_Fleet` 且不在港口时切到该舰队。没有 `OpsiFleet` 分组的任务（如 `OpsiShop`）不动。`os_init` 里当前舰队有士气低落 debuff 时，`fleet_resolve` 会先带这支舰队去 22 号安全海域打仗解除 debuff，这一步故意不切舰队；解除后探索下一个海域前才切。还没在真机上跑过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -132,7 +134,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.campaign.test_enhance_between_sorties tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.campaign.test_enhance_between_sorties tests.campaign.test_os_fleet_resume tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）

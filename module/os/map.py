@@ -78,8 +78,25 @@ class OSMap(OSFleet, Map, GlobeCamera, StrategicSearchHandler):
             logger.info('In zone 22, 44, 154, skip running first auto search')
             self.handle_ash_beacon_attack()
         else:
+            # Task may resume in a zone left by a previous run, with another fleet selected
+            self.fleet_set_configured()
             self.run_auto_search(rescan=False)
             self.handle_after_auto_search()
+
+    def fleet_set_configured(self):
+        """
+        Switch to OpsiFleet.Fleet if current task has this setting.
+        The game auto selects the next alive fleet when current fleet is wiped out,
+        and resuming a zone doesn't go through the fleet_set() in each task.
+
+        Returns:
+            bool: If switched.
+        """
+        if 'OpsiFleet_Fleet' not in self.config.bound:
+            return False
+        if self.zone.is_port:
+            return False
+        return self.fleet_set(self.config.OpsiFleet_Fleet)
 
     def get_current_zone_from_globe(self):
         """
@@ -744,6 +761,8 @@ class OSMap(OSFleet, Map, GlobeCamera, StrategicSearchHandler):
                         prev = self.zone
                         if self.handle_after_auto_search():
                             self.globe_goto(prev, types='DANGEROUS')
+                            # A wiped fleet makes the game select another one
+                            self.fleet_set_configured()
                             continue
                 break
 
