@@ -270,7 +270,8 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
     def handle_low_emotion_wait(self):
         """
         Wait in map after low emotion popup cancelled, instead of withdrawing and losing map progress.
-        Battle preparation is still on screen, caller clicks it again after waiting.
+        Callers retry after waiting: combat_preparation() clicks BATTLE_PREPARATION again,
+        walk and ambush loops click the enemy or MAP_AMBUSH_ATTACK again.
 
         Not waiting when:
         - Popup when entering map, it doesn't tell which fleet is low
@@ -288,13 +289,8 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
         if getattr(self.config, 'FLEET_ORDER_ROTATE', False):
             return False
 
-        self.emotion.update()
         fleet = self.emotion.fleets[self.fleet_show_index - 1]
-        if fleet.current > self.LOW_EMOTION_POPUP_VALUE:
-            logger.warning(f'Low emotion popup, correct emotion of fleet {fleet.key}: '
-                           f'{fleet.current} -> {self.LOW_EMOTION_POPUP_VALUE}')
-            fleet.current = self.LOW_EMOTION_POPUP_VALUE
-        self.emotion.record()
+        self.low_emotion_correct([fleet])
 
         recovered = fleet.get_recovered(expected_reduce=self.emotion.reduce_per_battle)
         wait = max((recovered - datetime.now()).total_seconds(), 0)
@@ -331,6 +327,21 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
             return [self.emotion.fleets[self.fleet_show_index - 1]]
         else:
             return self.emotion.fleets
+
+    def low_emotion_correct(self, fleets):
+        """
+        Popup means real emotion is below LOW_EMOTION_POPUP_VALUE, lower calculated emotion to it.
+
+        Args:
+            fleets (list[FleetEmotion]):
+        """
+        self.emotion.update()
+        for fleet in fleets:
+            if fleet.current > self.LOW_EMOTION_POPUP_VALUE:
+                logger.warning(f'Low emotion popup, correct emotion of fleet {fleet.key}: '
+                               f'{fleet.current} -> {self.LOW_EMOTION_POPUP_VALUE}')
+                fleet.current = self.LOW_EMOTION_POPUP_VALUE
+        self.emotion.record()
 
     def handle_low_emotion_withdraw(self):
         """
@@ -379,13 +390,7 @@ class CampaignBase(CampaignUI, Map, AutoSearchCombat):
             fleets = self.emotion.fleets
         else:
             fleets = [self.emotion.fleets[self.fleet_show_index - 1]]
-        self.emotion.update()
-        for fleet in fleets:
-            if fleet.current > self.LOW_EMOTION_POPUP_VALUE:
-                logger.warning(f'Low emotion popup, correct emotion of fleet {fleet.key}: '
-                               f'{fleet.current} -> {self.LOW_EMOTION_POPUP_VALUE}')
-                fleet.current = self.LOW_EMOTION_POPUP_VALUE
-        self.emotion.record()
+        self.low_emotion_correct(fleets)
 
         # Delay until emotion is enough for this map, raise ScriptEnd
         self.emotion.check_reduce(self._map_battle)
