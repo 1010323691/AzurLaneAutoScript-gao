@@ -16,6 +16,12 @@ class FakeDevice:
     def click(self, button):
         self.clicked.append(button.name)
 
+    def stuck_record_clear(self):
+        pass
+
+    def click_record_clear(self):
+        pass
+
 
 class FakeLowEmotionCampaign(CampaignBase):
     """CampaignBase with screenshots replaced by a list of states."""
@@ -62,6 +68,9 @@ class FakeLowEmotionCampaign(CampaignBase):
     def interval_reset(self, button, interval=None):
         pass
 
+    def interval_clear(self, button, interval=3):
+        pass
+
     def handle_story_skip(self, drop=None):
         return False
 
@@ -86,8 +95,11 @@ class FakeLowEmotionCampaign(CampaignBase):
         return True
 
 
-def make(v1=41, v2=51, states=('in_map',), fleet_show_index=2, **kwargs):
+def make(v1=41, v2=51, states=('in_map',), fleet_show_index=2, auto_search=True, **kwargs):
     campaign = FakeLowEmotionCampaign(FakeConfig(v1, v2, **kwargs), list(states))
+    campaign.map_is_auto_search = auto_search
+    campaign.waited = []
+    campaign.emotion.wait = lambda fleet_index: campaign.waited.append(fleet_index)
     campaign.low_emotion_withdraw = True
     campaign.low_emotion_in_map = 'in_map' in states or 'battle_preparation' in states
     campaign.fleet_show_index = fleet_show_index
@@ -219,6 +231,69 @@ class TestLowEmotionWithdraw(unittest.TestCase):
         campaign.low_emotion_withdraw = False
         self.assertFalse(campaign.handle_combat_low_emotion())
         self.assertEqual(campaign.popup_clicked, [])
+
+
+
+class TestLowEmotionWaitInMap(unittest.TestCase):
+    def test_wait_instead_of_withdraw(self):
+        # Real case: 11-3 popup at the last mob battle, withdrawing wasted 5 battles every 30 minutes
+        campaign = make(v1=110, v2=100, fleet_show_index=1, auto_search=False)
+        self.assertTrue(campaign.handle_combat_low_emotion())
+        self.assertEqual(campaign.popup_clicked, ['cancel IGNORE_LOW_EMOTION'])
+        self.assertFalse(campaign.withdrawn)
+        self.assertEqual(campaign.waited, [1])
+        self.assertEqual(campaign.config.Emotion_Fleet1Value, 30)
+        self.assertEqual(campaign.config.Emotion_Fleet2Value, 100)
+        self.assertEqual(campaign.config.delays, [])
+        # not_in_dormitory 20/h, 30 -> 42 for green face limit 40
+        self.assertGreater(campaign.low_emotion_waited, 30 * 60)
+        self.assertLessEqual(campaign.low_emotion_waited, 42 * 60)
+
+    def test_wait_limit_withdraws(self):
+        campaign = make(v1=110, v2=100, fleet_show_index=1, auto_search=False)
+        campaign.low_emotion_waited = 40 * 60
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertTrue(campaign.withdrawn)
+        self.assertEqual(campaign.waited, [])
+        self.assertEqual(campaign.config.Emotion_Fleet1Value, 30)
+        self.assertGreater(campaign.config.delays[-1]['target'], datetime.now())
+
+    def test_long_wait_withdraws(self):
+        # Happy bonus needs 30 -> 122, hours of waiting
+        campaign = make(v1=110, v2=100, fleet_show_index=1, auto_search=False, control='keep_exp_bonus')
+        for i in (1, 2):
+            setattr(campaign.config, f'Emotion_Fleet{i}Recover', 'dormitory_floor_2')
+        campaign.emotion = Emotion(campaign.config)
+        campaign.emotion.wait = lambda fleet_index: campaign.waited.append(fleet_index)
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertTrue(campaign.withdrawn)
+        self.assertEqual(campaign.waited, [])
+
+    def test_auto_search_withdraws(self):
+        campaign = make(v1=110, v2=100, fleet_show_index=1, auto_search=True)
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertTrue(campaign.withdrawn)
+        self.assertEqual(campaign.waited, [])
+
+    def test_entering_map_not_wait(self):
+        campaign = make(states=['fleet_preparation'], auto_search=False)
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertTrue(campaign.cancelled)
+        self.assertEqual(campaign.waited, [])
+
+    def test_wait_again_accumulates(self):
+        campaign = make(v1=110, v2=100, fleet_show_index=1, auto_search=False)
+        self.assertTrue(campaign.handle_combat_low_emotion())
+        # Popup again after waiting, another 36 minutes exceeds 60 minutes in total
+        campaign.popup = True
+        with self.assertRaises(ScriptEnd):
+            campaign.handle_combat_low_emotion()
+        self.assertEqual(campaign.waited, [1])
+        self.assertTrue(campaign.withdrawn)
 
 
 if __name__ == '__main__':

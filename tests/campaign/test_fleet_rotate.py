@@ -137,6 +137,7 @@ class TestLowEmotionRotate(unittest.TestCase):
         campaign = FakeLowEmotionCampaign(config, ['in_map'])
         campaign.low_emotion_withdraw = True
         campaign.low_emotion_in_map = True
+        campaign.map_is_auto_search = False
         campaign.fleet_show_index = 1
         return campaign
 
