@@ -5,6 +5,7 @@ from scipy import signal
 
 from module.base.timer import Timer
 from module.base.utils import *
+from module.campaign.sortie_status import status_read, status_update
 from module.combat.assets import *
 from module.commission.assets import *
 from module.commission.preset import DICT_FILTER_PRESET, SHORTEST_FILTER
@@ -12,7 +13,6 @@ from module.commission.project import COMMISSION_FILTER, Commission
 from module.config.config_generated import GeneratedConfig
 from module.config.utils import get_server_last_update, get_server_next_update
 from module.dorm.dorm import RewardDorm
-from module.campaign.sortie_status import status_read, status_update
 from module.exception import CommissionRewardBlocked, GameStuckError, OilMaxed, TaskRequirementNotMet
 from module.handler.info_handler import InfoHandler
 from module.logger import logger
@@ -50,7 +50,6 @@ def lines_detect(image):
     return np.array(peaks)
 
 
-
 # Clicking REWARD_1 this many times in a row with info bars shown and no reward received,
 # means commission rewards can't be received (oil maxed).
 REWARD_BLOCKED_CLICK = 5
@@ -78,6 +77,7 @@ def commission_blocked_until(config_name, now=None):
     if now is None:
         now = datetime.now()
     return until if until > now else None
+
 
 class CommissionRequirementNotMet(Exception):
     # Fleet recommended by game still doesn't meet commission limitations,
@@ -614,7 +614,7 @@ class RewardCommission(UI, InfoHandler):
                     blocked_info_bar = True
                 if blocked_click >= REWARD_BLOCKED_CLICK and blocked_info_bar:
                     logger.warning(f'Clicked REWARD_1 {blocked_click} times but nothing received, '
-                                   f'commission rewards are blocked (oil maxed)')
+                                   f'commission rewards are blocked (usually oil maxed)')
                     raise CommissionRewardBlocked
 
                 for button in [EXP_INFO_S_REWARD, GET_ITEMS_1, GET_ITEMS_2, GET_ITEMS_3]:
@@ -708,10 +708,10 @@ class RewardCommission(UI, InfoHandler):
         Raises:
             TaskEnd:
         """
-        logger.warning(f'Commission rewards blocked, delay {REWARD_BLOCKED_DELAY_MINUTE} minutes')
+        logger.warning(f'Commission rewards blocked (usually oil maxed), delay {REWARD_BLOCKED_DELAY_MINUTE} minutes')
         self.handle_info_bar()
         until = datetime.now().replace(microsecond=0) + timedelta(minutes=REWARD_BLOCKED_DELAY_MINUTE)
-        status_update(self.config, key=REWARD_BLOCKED_STATUS_KEY, until=until, reason='oil_maxed')
+        status_update(self.config, key=REWARD_BLOCKED_STATUS_KEY, until=until)
         self.config.task_delay(minute=REWARD_BLOCKED_DELAY_MINUTE)
         self.config.task_stop('Commission rewards blocked')
 
@@ -726,7 +726,9 @@ class RewardCommission(UI, InfoHandler):
             self.commission_receive()
         except CommissionRewardBlocked:
             self.commission_reward_blocked()
-        status_update(self.config, key=REWARD_BLOCKED_STATUS_KEY, until=None)
+        if commission_blocked_until(self.config.config_name) is not None:
+            # Rewards received before the delay ends, e.g. oil consumed manually
+            status_update(self.config, key=REWARD_BLOCKED_STATUS_KEY, until=None)
 
         # info_bar appears when get ship in Launch Ceremony commissions
         # This is a game bug, the info_bar shows get ship, will appear over and over again, until you click get_ship.

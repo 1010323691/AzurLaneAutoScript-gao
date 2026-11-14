@@ -99,7 +99,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - 2026-11-05 真机验证过选中和切换（`MAIN` → 选「探索海域」→ `DANGEROUS`），进入海域后的流程没变。素材只有一张截图，不同章节缩略图背景不同，可能影响匹配。
   21. **委托奖励领不了（石油满）时推迟 2 小时**：日服石油到上限时，点「完成」只弹信息条「燃料が上限になっています委託報酬を受け取ることができません」，上游一直点 `REWARD_1` 到 `GameTooManyClickError`；跳过模式推迟后，主线在关卡页看到委托完成提示又 `task_call('Commission')` 立刻叫回来，循环重试（2026-11-14）。
      - 现在 `_commission_receive()` 连续点 `REWARD_1`（含 `REWARD_1_WHITE`）`REWARD_BLOCKED_CLICK`（5）次没领到东西、期间出现过信息条时，抛 `CommissionRewardBlocked`；`run()` 捕获后 `commission_reward_blocked()`：`task_delay(minute=120)`、把截止时间写进状态文件 `_CommissionBlocked` 键，再 `task_stop()`。不派新委托。
-     - `CampaignRun.handle_commission_notice()` 在截止时间前忽略委托完成提示（`commission_blocked_until`）。委托领奖正常走完时清掉标记。国服的 `OIL_MAXED` 弹窗（买食物消耗石油）是上游逻辑，没动。没出现信息条的连点仍按上游报错。还没在真机上跑过。
+     - `CampaignRun.handle_commission_notice()` 在截止时间前忽略委托完成提示（`commission_blocked_until`）。委托领奖正常走完、标记仍有效时清掉标记。国服的 `OIL_MAXED` 弹窗（买食物消耗石油）是上游逻辑，没动。没出现信息条的连点仍按上游报错。还没在真机上跑过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
