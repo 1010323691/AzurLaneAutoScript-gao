@@ -420,6 +420,11 @@ class CampaignRun(CampaignEvent):
         """
         if self.campaign.commission_notice_show_at_campaign():
             logger.info('Commission notice found')
+            from module.commission.commission import commission_blocked_until
+            until = commission_blocked_until(self.config.config_name)
+            if until is not None:
+                logger.info(f'Commission rewards blocked until {until}, ignore commission notice')
+                return
             self.config.task_call('Commission', force_call=True)
             self.config.task_stop('Commission notice found')
 

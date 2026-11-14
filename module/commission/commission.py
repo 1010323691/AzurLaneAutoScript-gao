@@ -12,7 +12,8 @@ from module.commission.project import COMMISSION_FILTER, Commission
 from module.config.config_generated import GeneratedConfig
 from module.config.utils import get_server_last_update, get_server_next_update
 from module.dorm.dorm import RewardDorm
-from module.exception import GameStuckError, OilMaxed, TaskRequirementNotMet
+from module.campaign.sortie_status import status_read, status_update
+from module.exception import CommissionRewardBlocked, GameStuckError, OilMaxed, TaskRequirementNotMet
 from module.handler.info_handler import InfoHandler
 from module.logger import logger
 from module.map.map_grids import SelectedGrids
@@ -48,6 +49,35 @@ def lines_detect(image):
     peaks = [y for y in peaks if y > 67 + 117]
     return np.array(peaks)
 
+
+
+# Clicking REWARD_1 this many times in a row with info bars shown and no reward received,
+# means commission rewards can't be received (oil maxed).
+REWARD_BLOCKED_CLICK = 5
+# Delay commission for this many minutes when rewards can't be received.
+REWARD_BLOCKED_DELAY_MINUTE = 120
+# Key in log/status/<config_name>.json
+REWARD_BLOCKED_STATUS_KEY = '_CommissionBlocked'
+
+
+def commission_blocked_until(config_name, now=None):
+    """
+    Returns:
+        datetime: Time until commission rewards are considered blocked, None if not blocked now.
+    """
+    status = status_read(config_name).get(REWARD_BLOCKED_STATUS_KEY, {})
+    if not isinstance(status, dict):
+        return None
+    until = status.get('until')
+    if not isinstance(until, str):
+        return None
+    try:
+        until = datetime.fromisoformat(until)
+    except ValueError:
+        return None
+    if now is None:
+        now = datetime.now()
+    return until if until > now else None
 
 class CommissionRequirementNotMet(Exception):
     # Fleet recommended by game still doesn't meet commission limitations,
@@ -561,6 +591,9 @@ class RewardCommission(UI, InfoHandler):
 
         reward = False
         click_timer = Timer(1)
+        # Consecutive REWARD_1 clicks without receiving anything
+        blocked_click = 0
+        blocked_info_bar = False
         with self.stat.new(
                 'commission', method=self.config.DropRecord_CommissionRecord
         ) as drop:
@@ -576,8 +609,18 @@ class RewardCommission(UI, InfoHandler):
                     # Commission rewards may appear too slow, causing stuck in UI switching
                     break
 
+                # Commission rewards can't be received, game only shows an info bar on click
+                if self.info_bar_count():
+                    blocked_info_bar = True
+                if blocked_click >= REWARD_BLOCKED_CLICK and blocked_info_bar:
+                    logger.warning(f'Clicked REWARD_1 {blocked_click} times but nothing received, '
+                                   f'commission rewards are blocked (oil maxed)')
+                    raise CommissionRewardBlocked
+
                 for button in [EXP_INFO_S_REWARD, GET_ITEMS_1, GET_ITEMS_2, GET_ITEMS_3]:
                     if self.appear(button, interval=1):
+                        blocked_click = 0
+                        blocked_info_bar = False
                         if drop:
                             self.ensure_no_info_bar(timeout=1)
                             drop.add(self.device.image)
@@ -591,11 +634,13 @@ class RewardCommission(UI, InfoHandler):
                     self.interval_reset(GET_SHIP)
                     click_timer.reset()
                     reward = True
+                    blocked_click += 1
                     continue
                 if click_timer.reached() and self.appear_then_click(REWARD_1_WHITE, offset=(20, 20), interval=1):
                     self.interval_reset(GET_SHIP)
                     click_timer.reset()
                     reward = True
+                    blocked_click += 1
                     continue
                 if click_timer.reached() and self.appear_then_click(REWARD_GOTO_COMMISSION, offset=(20, 20)):
                     self.interval_reset(GET_SHIP)
@@ -617,6 +662,8 @@ class RewardCommission(UI, InfoHandler):
                 # Check GET_SHIP at last to handle random white background at page_main
                 for button in [GET_SHIP]:
                     if click_timer.reached() and self.appear(button, offset=(20, 20), interval=1):
+                        blocked_click = 0
+                        blocked_info_bar = False
                         self.ensure_no_info_bar(timeout=1)
                         drop.add(self.device.image)
 
@@ -652,6 +699,22 @@ class RewardCommission(UI, InfoHandler):
         logger.critical(f'Failed to handle oil maxed after 3 trial')
         raise TaskRequirementNotMet
 
+    def commission_reward_blocked(self):
+        """
+        Commission rewards can't be received (oil maxed), retry later.
+        Commission notice at page_campaign won't call commission until then,
+        see CampaignRun.handle_commission_notice().
+
+        Raises:
+            TaskEnd:
+        """
+        logger.warning(f'Commission rewards blocked, delay {REWARD_BLOCKED_DELAY_MINUTE} minutes')
+        self.handle_info_bar()
+        until = datetime.now().replace(microsecond=0) + timedelta(minutes=REWARD_BLOCKED_DELAY_MINUTE)
+        status_update(self.config, key=REWARD_BLOCKED_STATUS_KEY, until=until, reason='oil_maxed')
+        self.config.task_delay(minute=REWARD_BLOCKED_DELAY_MINUTE)
+        self.config.task_stop('Commission rewards blocked')
+
     def run(self):
         """
         Pages:
@@ -659,7 +722,11 @@ class RewardCommission(UI, InfoHandler):
             out: page_commission
         """
         self.ui_ensure(page_reward)
-        self.commission_receive()
+        try:
+            self.commission_receive()
+        except CommissionRewardBlocked:
+            self.commission_reward_blocked()
+        status_update(self.config, key=REWARD_BLOCKED_STATUS_KEY, until=None)
 
         # info_bar appears when get ship in Launch Ceremony commissions
         # This is a game bug, the info_bar shows get ship, will appear over and over again, until you click get_ship.

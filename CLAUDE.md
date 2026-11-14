@@ -97,6 +97,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   20. **大世界「メイン海域」面板**：带主线章节的海域（如日服 32 号，面板「Chapter5-1 泥沼」），在大地图上点选后默认显示「メイン海域」，左下的类型标签不是危険/安全，上游认不出已选中，一直重点 `ZONE_32` 到 `GameTooManyClickError`（2026-11-04、11-05 `OpsiExplore` 都因此推迟到次日）。
      - 现在新增素材 `ZONE_MAIN`（`assets/cn/os/ZONE_MAIN.png`，内容是日服截图），加进 `globe_operation.py` 的 `ZONE_TYPES`，类型名 `MAIN`。它不在 `('SAFE', 'DANGEROUS')` 里，所以 `zone_type_select` / `zone_has_safe` 会点「エリア選択」，从「メイン海域 / 秘密座標 / 確保海域 / 探索海域」里按原逻辑选，原有 `SELECT_*` 素材能认出列表。
      - 2026-11-05 真机验证过选中和切换（`MAIN` → 选「探索海域」→ `DANGEROUS`），进入海域后的流程没变。素材只有一张截图，不同章节缩略图背景不同，可能影响匹配。
+  21. **委托奖励领不了（石油满）时推迟 2 小时**：日服石油到上限时，点「完成」只弹信息条「燃料が上限になっています委託報酬を受け取ることができません」，上游一直点 `REWARD_1` 到 `GameTooManyClickError`；跳过模式推迟后，主线在关卡页看到委托完成提示又 `task_call('Commission')` 立刻叫回来，循环重试（2026-11-14）。
+     - 现在 `_commission_receive()` 连续点 `REWARD_1`（含 `REWARD_1_WHITE`）`REWARD_BLOCKED_CLICK`（5）次没领到东西、期间出现过信息条时，抛 `CommissionRewardBlocked`；`run()` 捕获后 `commission_reward_blocked()`：`task_delay(minute=120)`、把截止时间写进状态文件 `_CommissionBlocked` 键，再 `task_stop()`。不派新委托。
+     - `CampaignRun.handle_commission_notice()` 在截止时间前忽略委托完成提示（`commission_blocked_until`）。委托领奖正常走完时清掉标记。国服的 `OIL_MAXED` 弹窗（买食物消耗石油）是上游逻辑，没动。没出现信息条的连点仍按上游报错。还没在真机上跑过。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -138,7 +141,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.campaign.test_enhance_between_sorties tests.campaign.test_os_fleet_resume tests.os.test_zone_main tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.commission.test_commission_blocked tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.campaign.test_enhance_between_sorties tests.campaign.test_os_fleet_resume tests.os.test_zone_main tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -419,6 +422,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | `Request human takeover` 后退出 | 配置或环境问题，或同一任务连续失败 3 次 | 往前看 `logger.critical` 的提示，它通常写明了原因 |
 | 某个服务器识别失败，其他服务器正常 | 缺少该服务器的素材，或 `@Config.when(SERVER=...)` 分支缺失 | `assets/<server>/<module>/`，对应模块的 `assets.py` |
 | 改了配置但不生效 | 没跑 `config_updater`；值不在 `option` 里，被重置为默认值；运行中的进程仍是旧代码 | `module/config/argument/*.yaml`；重启实例或 GUI |
+| 日志反复 `Click @ REWARD_1`，`Too many click for a button: REWARD_1`，委托推迟后又被主线叫回来 | 石油满了，委托奖励领不了（fork 第 21 条已处理） | 日志的 `commission rewards are blocked` |
 | 改动消失了 | 自动更新执行了 `git reset --hard` | 第 0 节；`git reflog` 可以看到 `reset: moving to origin/master` |
 | GUI 点更新后重启了，但版本没变，仍提示有更新 | 上游的 `git_install` 被 `AutoUpdate: false` 跳过（已修复）；现在更新失败时状态会显示失败 | GUI 日志 `Update Alas` 段落里 `git merge --ff-only` 的输出 |
 

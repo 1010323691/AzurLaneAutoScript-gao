@@ -16,6 +16,12 @@ class OilMaxed(Exception):
     pass
 
 
+class CommissionRewardBlocked(Exception):
+    # Commission reward can't be received, clicking REWARD_1 only shows an info bar.
+    # e.g. JP "燃料が上限になっています委託報酬を受け取ることができません"
+    pass
+
+
 class MapDetectionError(Exception):
     pass
 
