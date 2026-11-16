@@ -107,7 +107,7 @@ class StrategicSearchHandler(MapEventHandler):
                     logger.warning('Merchant options not found after scrolling')
                     return False
                 position = STRATEGIC_SEARCH_SCROLL.cal_position(main=self)
-                STRATEGIC_SEARCH_SCROLL.drag_threshold = 0.05
+                STRATEGIC_SEARCH_SCROLL.drag_threshold = 0.1
                 STRATEGIC_SEARCH_SCROLL.set(min(position + 0.15, 1), main=self)
                 scrolled += 1
                 continue
