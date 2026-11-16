@@ -100,6 +100,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   21. **委托奖励领不了（石油满）时推迟 2 小时**：日服石油到上限时，点「完成」只弹信息条「燃料が上限になっています委託報酬を受け取ることができません」，上游一直点 `REWARD_1` 到 `GameTooManyClickError`；跳过模式推迟后，主线在关卡页看到委托完成提示又 `task_call('Commission')` 立刻叫回来，循环重试（2026-11-14）。
      - 现在 `_commission_receive()` 连续点 `REWARD_1`（含 `REWARD_1_WHITE`）`REWARD_BLOCKED_CLICK`（5）次没领到东西、期间出现过信息条时，抛 `CommissionRewardBlocked`；`run()` 捕获后 `commission_reward_blocked()`：`task_delay(minute=120)`、把截止时间写进状态文件 `_CommissionBlocked` 键，再 `task_stop()`。不派新委托。
      - `CampaignRun.handle_commission_notice()` 在截止时间前忽略委托完成提示（`commission_blocked_until`）。委托领奖正常走完、标记仍有效时清掉标记。国服的 `OIL_MAXED` 弹窗（买食物消耗石油）是上游逻辑，没动。没出现信息条的连点仍按上游报错。还没在真机上跑过。
+  22. **大世界自动确保（自動確保モード）的「谜之商人」选项被挤出可见区域**：日服弹窗里「同じエリアに進入」折成两行，「謎の商人出現時」一行被挤到列表下边缘外，上游 `strategic_search_set_option()` 的第一个循环按固定坐标找商人勾选框，找不到又没有别的分支，空等到 `GameStuckError`（2026-11-16 `OpsiHazard1Leveling` 连卡 3 次，被推迟到 12:00）。目前只有侵蚀 1 用 `run_strategic_search()`。
+     - 现在第一个循环里「同じエリア」已勾、固定位置看不到商人的两个选项持续约 1 秒时，改走 `_strategic_search_set_merchant()`：用新素材 `STRATEGIC_SEARCH_MERCHANT_CHECK`（「謎の商人出現時」标题，cn 目录放的也是日服图）定位标题，在标题下方 80 像素内找绿色勾（`_strategy_merchant_tick`）；勾被列表下边缘（y=468）切掉或看不到就把滚动条往下拉 0.15（误差放宽到 0.1，滚不够时下一轮再拉），最多 4 次。勾的 x 在「中止」「继续」两列中点左边就是「中止」；在右边就在同一行点「中止」原来的 x 坐标，最多点 3 次。失败返回 False，由 `strategic_search_start` 按上游重试 3 次。之后设置装置、自动提交的步骤不变。
+     - 旧布局（固定位置能看到商人勾）仍按上游走。2026-11-16 真机验证过：商人原为「继续」时滚动后点「中止」一次成功；已是「中止」时只滚动不点击。
 - **用户环境**：Windows 平台，日服（`com.YoStarJP.AzurLane`），雷电模拟器 `emulator-5554`，低等级账号。
 
 ---
@@ -141,7 +144,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./toolkit/python.exe -m dev_tools.button_extract
 
 # 单元测试：toolkit 里没有装 pytest；unittest 风格的测试可以直接跑
-./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.commission.test_commission_blocked tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.campaign.test_enhance_between_sorties tests.campaign.test_os_fleet_resume tests.os.test_zone_main tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
+./toolkit/python.exe -m unittest tests.alas.test_stuck_handle tests.alas.test_updater tests.campaign.test_fleet_auto_swap tests.commission.test_commission_unmet tests.commission.test_commission_blocked tests.combat.test_combat_defeat tests.campaign.test_low_emotion tests.campaign.test_fleet_boss_follow_gui tests.campaign.test_fleet_focus_by_switch tests.campaign.test_submarine_move_give_up tests.campaign.test_sortie_status tests.campaign.test_emotion_sync tests.campaign.test_fleet_rotate tests.campaign.test_fleet_preset tests.campaign.test_walk_unreachable tests.campaign.test_enhance_between_sorties tests.campaign.test_os_fleet_resume tests.os.test_zone_main tests.os.test_strategic_merchant tests.ocr.test_numpy_ocr tests.device.test_screenshot_benchmark tests.map_detection.test_lines
 ./toolkit/python.exe -m unittest tests.campaign.test_fleet_auto_swap.TestEmotionAutoSwap.test_swap_back
 
 # tests/island、tests/meowfficer 等目录的测试依赖 pytest，要先在 toolkit 里安装（会修改运行环境，先征得用户同意）
@@ -423,6 +426,7 @@ alas.py 的每个方法都在方法体内延迟 import，执行形式是 `Cls(co
 | 某个服务器识别失败，其他服务器正常 | 缺少该服务器的素材，或 `@Config.when(SERVER=...)` 分支缺失 | `assets/<server>/<module>/`，对应模块的 `assets.py` |
 | 改了配置但不生效 | 没跑 `config_updater`；值不在 `option` 里，被重置为默认值；运行中的进程仍是旧代码 | `module/config/argument/*.yaml`；重启实例或 GUI |
 | 日志反复 `Click @ REWARD_1`，`Too many click for a button: REWARD_1`，委托推迟后又被主线叫回来 | 石油满了，委托奖励领不了（fork 第 21 条已处理） | 日志的 `commission rewards are blocked` |
+| 大世界侵蚀 1 刚开始就 `GameStuckError`，调用栈停在 `strategic_search_set_option`，日志最后是 `[zone_mode] random` 或 `Strategic search set option` | 日服弹窗布局变化，谜之商人选项被挤出可见区域（fork 第 22 条已处理） | 日志的 `Merchant options not at default position` |
 | 改动消失了 | 自动更新执行了 `git reset --hard` | 第 0 节；`git reflog` 可以看到 `reset: moving to origin/master` |
 | GUI 点更新后重启了，但版本没变，仍提示有更新 | 上游的 `git_install` 被 `AutoUpdate: false` 跳过（已修复）；现在更新失败时状态会显示失败 | GUI 日志 `Update Alas` 段落里 `git merge --ff-only` 的输出 |
 

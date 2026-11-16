@@ -1,10 +1,18 @@
-from module.base.utils import get_color
+import numpy as np
+
+from module.base.timer import Timer
+from module.base.utils import color_mask, get_color
 from module.logger import logger
 from module.os_handler.assets import *
 from module.os_handler.map_event import MapEventHandler
 from module.ui.scroll import Scroll
 
 STRATEGIC_SEARCH_SCROLL = Scroll(STRATEGIC_SEARCH_SCROLL_AREA, color=(247, 211, 66), name='STRATEGIC_SEARCH_SCROLL')
+# Option list in strategic search popup, x from option rows, bottom where the list is clipped
+STRATEGIC_SEARCH_LIST_AREA = (380, 277, 900, 468)
+STRATEGIC_SEARCH_TICK_COLOR = (156, 255, 82)
+# Search ticks within this height below merchant title, before the next option title
+MERCHANT_OPTION_HEIGHT = 80
 
 
 class StrategicSearchHandler(MapEventHandler):
@@ -53,12 +61,80 @@ class StrategicSearchHandler(MapEventHandler):
         """
         return self.image_color_count(button.button, color=(156, 255, 82), count=30)
 
+    def _strategy_merchant_tick(self):
+        """
+        Find the green tick in merchant options, below title STRATEGIC_SEARCH_MERCHANT_CHECK.
+
+        Returns:
+            tuple[int, int]: (x, y) of tick center, or None if options are not fully visible.
+        """
+        if not self.appear(STRATEGIC_SEARCH_MERCHANT_CHECK, offset=(20, 200), similarity=0.75):
+            return None
+        _, _, _, title_bottom = STRATEGIC_SEARCH_MERCHANT_CHECK.button
+        x1, _, x2, list_bottom = STRATEGIC_SEARCH_LIST_AREA
+        y1 = title_bottom + 2
+        y2 = min(title_bottom + MERCHANT_OPTION_HEIGHT, list_bottom)
+        if y2 - y1 < 20:
+            return None
+        image = self.image_crop((x1, y1, x2, y2), copy=False)
+        mask = color_mask(image, STRATEGIC_SEARCH_TICK_COLOR, threshold=30)
+        ys, xs = np.nonzero(mask)
+        if len(xs) <= 30:
+            return None
+        # Tick cut by the list bottom
+        if ys.max() + y1 >= list_bottom - 3:
+            return None
+        return int(xs.mean()) + x1, int(ys.mean()) + y1
+
+    def _strategic_search_set_merchant(self):
+        """
+        Set encounter merchant to stop when merchant options are not at their default position.
+        Scroll down until options are visible, then classify the tick by column.
+
+        Returns:
+            bool: If success.
+        """
+        stop_x = (STRATEGIC_SEARCH_MERCHANT_STOP.button[0] + STRATEGIC_SEARCH_MERCHANT_STOP.button[2]) // 2
+        continue_x = (STRATEGIC_SEARCH_MERCHANT_CONTINUE.button[0] + STRATEGIC_SEARCH_MERCHANT_CONTINUE.button[2]) // 2
+        middle = (stop_x + continue_x) // 2
+        scrolled = 0
+        clicked = 0
+        click_interval = Timer(2)
+        for _ in self.loop(timeout=20):
+            tick = self._strategy_merchant_tick()
+            if tick is None:
+                if scrolled >= 4:
+                    logger.warning('Merchant options not found after scrolling')
+                    return False
+                position = STRATEGIC_SEARCH_SCROLL.cal_position(main=self)
+                STRATEGIC_SEARCH_SCROLL.drag_threshold = 0.1
+                STRATEGIC_SEARCH_SCROLL.set(min(position + 0.15, 1), main=self)
+                scrolled += 1
+                continue
+            x, y = tick
+            if x < middle:
+                logger.attr('encounter_merchant', 'stop')
+                return True
+            logger.attr('encounter_merchant', 'continue')
+            if click_interval.reached():
+                if clicked >= 3:
+                    logger.warning('Failed to set encounter merchant to stop')
+                    return False
+                stop = STRATEGIC_SEARCH_MERCHANT_STOP.move((0, y - STRATEGIC_SEARCH_MERCHANT_STOP.button[1] - 7))
+                self.device.click(stop)
+                clicked += 1
+                click_interval.reset()
+        else:
+            logger.warning('Set encounter merchant timeout')
+            return False
+
     def strategic_search_set_option(self):
         """
         Returns:
             If success. False if strategic settings closed for unknown reason.
         """
         logger.info('Strategic search set option')
+        merchant_hidden = Timer(1, count=2)
         for _ in self.loop():
             if self._strategy_option_selected(STRATEGIC_SEARCH_ZONEMODE_REPEAT) \
                     and self._strategy_option_selected(STRATEGIC_SEARCH_MERCHANT_STOP):
@@ -68,11 +144,25 @@ class StrategicSearchHandler(MapEventHandler):
             if self._strategy_option_selected(STRATEGIC_SEARCH_ZONEMODE_RANDOM):
                 logger.attr('zone_mode', 'random')
                 self.device.click(STRATEGIC_SEARCH_ZONEMODE_REPEAT)
+                merchant_hidden.clear()
                 continue
             if self._strategy_option_selected(STRATEGIC_SEARCH_MERCHANT_CONTINUE):
                 logger.attr('encounter_merchant', 'continue')
                 self.device.click(STRATEGIC_SEARCH_MERCHANT_STOP)
+                merchant_hidden.clear()
                 continue
+            # JP: zone mode options wrap into two lines, pushing merchant options
+            # below the visible list, so neither MERCHANT_STOP nor MERCHANT_CONTINUE appears.
+            if self._strategy_option_selected(STRATEGIC_SEARCH_ZONEMODE_REPEAT):
+                merchant_hidden.start()
+                if merchant_hidden.reached():
+                    logger.attr('zone_mode', 'repeat')
+                    logger.info('Merchant options not at default position, locate by title')
+                    if not self._strategic_search_set_merchant():
+                        return False
+                    break
+            else:
+                merchant_hidden.clear()
 
         STRATEGIC_SEARCH_SCROLL.drag_threshold = 0.1
         STRATEGIC_SEARCH_SCROLL.set(0.5, main=self)
